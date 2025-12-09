@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<title>視頻處理工具 (專業版)</title>
+<style>
+  :root {
+    --primary: #4361ee;
+    --primary-hover: #3a53d0;
+    --bg: #f8f9fa;
+    --card-bg: #ffffff;
+    --text-main: #2b2d42;
+    --text-sub: #8d99ae;
+    --border: #edf2f4;
+    --success: #2ec4b6;
+    --danger: #ef233c;
+    --shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.05);
+  }
+  
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    margin: 0;
+    padding: 20px;
+    color: var(--text-main);
+    height: 100vh;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .box {
+    max-width: 1300px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  
+  h1 {
+    margin: 0;
+    color: var(--text-main);
+    font-size: 1.8em;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+
+  .main-layout {
+    display: grid;
+    grid-template-columns: 45% 1fr;
+    gap: 25px;
+    align-items: start;
+  }
+
+  @media(max-width: 1000px) {
+    .main-layout { grid-template-columns: 1fr; }
+    body { height: auto; }
+  }
+
+  /* 左側區域 */
+  .left-col {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .video-container {
+    background: #000;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    aspect-ratio: 16/9; /* 固定比例 */
+    position: relative;
+    width: 100%;
+  }
+
+  .upload-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.98);
+    cursor: pointer;
+    z-index: 10;
+    transition: 0.3s;
+  }
+  
+  .upload-overlay:hover {
+    background: #f0f7ff;
+  }
+
+  .upload-text {
+    font-size: 1.1em;
+    font-weight: 600;
+    color: var(--primary);
+    margin-bottom: 8px;
+  }
+
+  .upload-hint {
+    font-size: 0.85em;
+    color: var(--text-sub);
+  }
+
+  .reupload-btn {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    z-index: 20;
+    background: rgba(255, 255, 255, 0.9);
+    color: var(--danger);
+    border: 1px solid var(--danger);
+    padding: 6px 14px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: bold;
+    display: none;
+    transition: 0.2s;
+  }
+  
+  .reupload-btn:hover {
+    background: var(--danger);
+    color: white;
+  }
+
+  video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+  }
+
+  /* 右側功能網格 */
+  .right-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-auto-rows: 1fr; /* 讓高度一致 */
+    gap: 20px;
+  }
+  
+  @media(max-width: 600px) { .right-grid { grid-template-columns: 1fr; } }
+
+  /* 卡片樣式 */
+  .card {
+    background: var(--card-bg);
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: transform 0.2s;
+  }
+  
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 15px 35px -5px rgba(0,0,0,0.08);
+  }
+
+  .card h3 {
+    margin: 0 0 15px;
+    color: var(--text-main);
+    font-size: 1.1em;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+  }
+  
+  .card h3::before {
+    content: '';
+    display: inline-block;
+    width: 4px;
+    height: 16px;
+    background: var(--primary);
+    margin-right: 10px;
+    border-radius: 2px;
+  }
+
+  /* 表單元件 */
+  .input-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-sub);
+    margin-bottom: 4px;
+  }
+
+  input[type=number] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 14px;
+    background: #f8fafc;
+    box-sizing: border-box;
+    transition: 0.2s;
+  }
+  
+  input[type=number]:focus {
+    outline: none;
+    border-color: var(--primary);
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
+  }
+
+  .btn-action {
+    width: 100%;
+    padding: 12px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.2s;
+    margin-top: auto; /* 推到底部 */
+  }
+  
+  .btn-action:hover {
+    background: var(--primary-hover);
+    box-shadow: 0 4px 12px rgba(67, 97, 238, 0.3);
+  }
+
+  .note {
+    font-size: 12px;
+    color: var(--text-sub);
+    margin: 8px 0;
+  }
+
+  /* 進度條與下載區 */
+  .progress-wrap {
+    height: 6px;
+    background: #edf2f4;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 15px;
+    display: none; /* 預設隱藏，有動作再顯示 */
+  }
+  
+  .progress-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--success);
+    border-radius: 3px;
+    transition: width 0.3s;
+  }
+
+  .status-log {
+    font-size: 13px;
+    color: var(--success);
+    font-weight: 600;
+    min-height: 20px;
+    margin-top: 5px;
+    text-align: right;
+  }
+
+  .download-link a {
+    display: block;
+    background: var(--success);
+    color: white;
+    padding: 10px;
+    text-align: center;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+    margin-top: 10px;
+    animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  
+  @keyframes popIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  /* 針對截圖卡片的特別樣式 */
+  .shot-card {
+    border-left: 4px solid var(--primary); /* 區隔一下 */
+  }
+</style>
+</head>
+<body>
+
+<div class="box">
+  <header>
+    <h1>視頻處理工具</h1>
+  </header>
+
+  <div class="main-layout">
+    <!-- 左側欄位：播放器 + 截圖 -->
+    <div class="left-col">
+      <div class="video-container">
+        <div class="upload-overlay" id="upload">
+          <div class="upload-text">點擊或拖曳影片至此</div>
+          <div class="upload-hint">支援 MP4, MOV, WebM</div>
+          <input type="file" id="fileInput" accept="video/*" style="display:none">
+        </div>
+        <button class="reupload-btn" id="reupload">更換影片</button>
+        <video id="video" controls style="display:none"></video>
+      </div>
+
+      <!-- 將截圖移到左側下方，填補空間 -->
+      <div class="card shot-card">
+        <h3>截取畫面</h3>
+        <div class="note">移動播放條到想截取的畫面，點擊下方按鈕即可下載原始畫質圖片。</div>
+        <button class="btn-action" id="shotBtn" style="background:#2b2d42;">截取當前畫面</button>
+        <div class="status-log" id="shotLog"></div>
+        <div class="download-link" id="shotDl"></div>
+      </div>
+    </div>
+
+    <!-- 右側欄位：2x2 功能矩陣 -->
+    <div class="right-grid">
+      
+      <!-- 1. 移除音訊 -->
+      <div class="card">
+        <div>
+          <h3>移除音訊</h3>
+          <div class="note">完全移除影片中的音軌，保留純畫面。</div>
+        </div>
+        <div>
+          <button class="btn-action" id="muteBtn">產生靜音 MP4</button>
+          <div class="progress-wrap" id="muteProgWrap"><div class="progress-bar" id="muteBar"></div></div>
+          <div class="status-log" id="muteLog"></div>
+          <div class="download-link" id="muteDl"></div>
+        </div>
+      </div>
+
+      <!-- 2. 縮放壓縮 -->
+      <div class="card">
+        <div>
+          <h3>縮放壓縮 (減小容量)</h3>
+          <div class="input-group">
+            <div>
+              <label>縮放比例 (%)</label>
+              <input type="number" id="scalePct" value="50" min="10" max="100">
+            </div>
+            <div>
+              <label>預覽尺寸</label>
+              <div id="scaleRes" style="font-size:13px; color:var(--primary); padding-top:10px; font-weight:600;">-</div>
+            </div>
+          </div>
+          <div class="note">等比縮小畫面，內容聲音完整保留。</div>
+        </div>
+        <div>
+          <button class="btn-action" id="scaleBtn">開始縮放</button>
+          <div class="progress-wrap" id="scaleProgWrap"><div class="progress-bar" id="scaleBar"></div></div>
+          <div class="status-log" id="scaleLog"></div>
+          <div class="download-link" id="scaleDl"></div>
+        </div>
+      </div>
+
+      <!-- 3. 裁切尺寸 -->
+      <div class="card">
+        <div>
+          <h3>裁切尺寸 (Crop)</h3>
+          <div class="input-group">
+            <div><label>寬度 (px)</label><input type="number" id="w" value="1280"></div>
+            <div><label>高度 (px)</label><input type="number" id="h" value="720"></div>
+          </div>
+          <div class="note">從畫面正中心裁切，必須小於原尺寸。</div>
+        </div>
+        <div>
+          <button class="btn-action" id="resizeBtn">開始裁切</button>
+          <div class="progress-wrap" id="resizeProgWrap"><div class="progress-bar" id="resizeBar"></div></div>
+          <div class="status-log" id="resizeLog"></div>
+          <div class="download-link" id="resizeDl"></div>
+        </div>
+      </div>
+
+      <!-- 4. 剪輯影片 -->
+      <div class="card">
+        <div>
+          <h3>剪輯影片</h3>
+          <div class="input-group">
+            <div><label>開始時間 (秒)</label><input type="number" id="start" value="0" step="0.1"></div>
+            <div><label>結束時間 (秒)</label><input type="number" id="end" value="10" step="0.1"></div>
+          </div>
+        </div>
+        <div>
+          <button class="btn-action" id="clipBtn">開始剪輯</button>
+          <div class="progress-wrap" id="clipProgWrap"><div class="progress-bar" id="clipBar"></div></div>
+          <div class="status-log" id="clipLog"></div>
+          <div class="download-link" id="clipDl"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+let file = null;
+let duration = 0;
+const video = document.getElementById('video');
+
+// 上傳與介面交互
+document.getElementById('upload').onclick = () => document.getElementById('fileInput').click();
+document.getElementById('fileInput').onchange = e => e.target.files[0] && load(e.target.files[0]);
+document.getElementById('upload').ondragover = e => { e.preventDefault(); document.getElementById('upload').style.background = '#f0f7ff'; };
+document.getElementById('upload').ondragleave = document.getElementById('upload').ondrop = e => { e.preventDefault(); document.getElementById('upload').style.background = ''; };
+document.getElementById('upload').ondrop = e => { e.preventDefault(); e.dataTransfer.files[0] && load(e.dataTransfer.files[0]); };
+
+function updateScalePreview() {
+    if(!video.videoWidth) return;
+    const pct = parseInt(document.getElementById('scalePct').value) || 50;
+    const newW = Math.floor(video.videoWidth * (pct / 100));
+    const newH = Math.floor(video.videoHeight * (pct / 100));
+    document.getElementById('scaleRes').textContent = `${newW} x ${newH}`;
+}
+
+document.getElementById('scalePct').oninput = updateScalePreview;
+
+function load(f){
+  if(!f.type.startsWith('video/')) return alert('請選擇影片！');
+  file = f;
+  const url = URL.createObjectURL(f);
+  video.src = url;
+  document.getElementById('upload').style.display = 'none';
+  video.style.display = 'block';
+  document.getElementById('reupload').style.display = 'block';
+
+  video.onloadedmetadata = () => {
+    duration = video.duration;
+    document.getElementById('w').value = video.videoWidth;
+    document.getElementById('h').value = video.videoHeight;
+    document.getElementById('end').value = Math.min(10, duration).toFixed(1);
+    updateScalePreview();
+  };
+  
+  // 重置所有狀態
+  document.querySelectorAll('.status-log, .download-link').forEach(el => el.innerHTML = '');
+  document.querySelectorAll('.progress-bar').forEach(b => b.style.width = '0%');
+  document.querySelectorAll('.progress-wrap').forEach(w => w.style.display = 'none');
+}
+document.getElementById('reupload').onclick = () => location.reload();
+
+// 顯示進度條輔助函式
+function showProgress(wrapId) {
+    document.getElementById(wrapId).style.display = 'block';
+}
+
+// 靜音
+document.getElementById('muteBtn').onclick = () => {
+  if(!file) return alert('請先上傳影片！');
+  document.getElementById('muteLog').textContent = '處理中...';
+  showProgress('muteProgWrap');
+  
+  const v = document.createElement('video');
+  v.src = URL.createObjectURL(file);
+  v.muted = true;
+  v.onloadedmetadata = () => {
+    v.play();
+    const stream = v.captureStream();
+    stream.getAudioTracks().forEach(t => t.enabled = false);
+    const recorder = new MediaRecorder(stream);
+    const chunks = [];
+    recorder.ondataavailable = e => chunks.push(e.data);
+    recorder.onstop = () => {
+      const blob = new Blob(chunks, {type: 'video/mp4'});
+      document.getElementById('muteDl').innerHTML = `<a href="${URL.createObjectURL(blob)}" download="${file.name.split('.')[0]}-靜音.mp4">下載靜音MP4</a>`;
+      document.getElementById('muteLog').textContent = '完成！';
+      document.getElementById('muteBar').style.width = '100%';
+    };
+    recorder.start();
+    setTimeout(() => recorder.stop(), v.duration * 1000 + 2000);
+  };
+};
+
+// 核心處理函數：裁切 (Crop) 與 剪輯 (Clip)
+function startProcessing(isClip = false) {
+  if(!file) return alert('請先上傳影片！');
+  const targetW = isClip ? video.videoWidth : parseInt(document.getElementById('w').value);
+  const targetH = isClip ? video.videoHeight : parseInt(document.getElementById('h').value);
+  const startSec = isClip ? (parseFloat(document.getElementById('start').value)||0) : 0;
+  const endSec = isClip ? Math.min(parseFloat(document.getElementById('end').value)||duration, duration) : duration;
+
+  if (isClip && endSec <= startSec) return alert('結束時間要大於開始時間！');
+  if (!isClip && (targetW >= video.videoWidth || targetH >= video.videoHeight)) return alert('只能小於原始尺寸！');
+
+  const logId = isClip ? 'clipLog' : 'resizeLog';
+  const barId = isClip ? 'clipBar' : 'resizeBar';
+  const dlId = isClip ? 'clipDl' : 'resizeDl';
+  const wrapId = isClip ? 'clipProgWrap' : 'resizeProgWrap';
+  
+  showProgress(wrapId);
+  runVideoProcess(targetW, targetH, startSec, endSec, logId, barId, dlId, isClip ? '剪輯' : '裁切', false);
+}
+
+// 新增功能：縮放 (Scale)
+function startScaling() {
+  if(!file) return alert('請先上傳影片！');
+  const pct = parseInt(document.getElementById('scalePct').value) || 50;
+  if(pct < 1 || pct > 100) return alert('比例請在 1-100 之間');
+  
+  const targetW = Math.floor(video.videoWidth * (pct / 100));
+  const targetH = Math.floor(video.videoHeight * (pct / 100));
+
+  showProgress('scaleProgWrap');
+  runVideoProcess(targetW, targetH, 0, duration, 'scaleLog', 'scaleBar', 'scaleDl', '縮放', true);
+}
+
+// 共用錄製核心
+function runVideoProcess(targetW, targetH, startSec, endSec, logId, barId, dlId, typeName, isScale) {
+  document.getElementById(logId).textContent = '處理中...';
+  document.getElementById(barId).style.width = '0%';
+
+  const videoSrc = document.createElement('video');
+  videoSrc.src = URL.createObjectURL(file);
+  videoSrc.muted = true;
+
+  const audioSrc = document.createElement('video');
+  audioSrc.src = URL.createObjectURL(file);
+  audioSrc.muted = false;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = targetW;
+  canvas.height = targetH;
+  const ctx = canvas.getContext('2d');
+
+  let recorder, chunks = [];
+
+  const begin = () => {
+    const options = { mimeType: 'video/mp4;codecs=avc1.42E01E,mp4a.40.2' }; 
+    if (!MediaRecorder.isTypeSupported(options.mimeType)) options.mimeType = 'video/mp4';
+
+    const canvasStream = canvas.captureStream(30);
+    const audioStream = audioSrc.captureStream();
+    const audioTrack = audioStream.getAudioTracks()[0];
+
+    const finalStream = new MediaStream([canvasStream.getVideoTracks()[0]]);
+    if (audioTrack) finalStream.addTrack(audioTrack);
+
+    recorder = new MediaRecorder(finalStream, options);
+    recorder.ondataavailable = e => chunks.push(e.data);
+    recorder.onstop = () => {
+      const blob = new Blob(chunks, {type: 'video/mp4'});
+      const name = file.name.split('.')[0];
+      const suffix = `-${typeName}`;
+      document.getElementById(dlId).innerHTML = `<a href="${URL.createObjectURL(blob)}" download="${name}${suffix}.mp4">下載${typeName}MP4</a>`;
+      document.getElementById(logId).textContent = '完成！';
+      document.getElementById(barId).style.width = '100%';
+    };
+    recorder.start();
+  };
+
+  videoSrc.onloadedmetadata = audioSrc.onloadedmetadata = () => {
+    videoSrc.currentTime = audioSrc.currentTime = startSec;
+  };
+
+  videoSrc.onseeked = () => {
+    videoSrc.onseeked = null; 
+    videoSrc.play();
+    audioSrc.play().catch(() => {});
+    begin();
+
+    const draw = () => {
+      if (videoSrc.currentTime >= endSec || videoSrc.ended) {
+        recorder.stop();
+        videoSrc.pause();
+        audioSrc.pause();
+        return;
+      }
+      
+      const progress = Math.min(100, ((videoSrc.currentTime - startSec)/(endSec - startSec)*100));
+      document.getElementById(barId).style.width = progress + '%';
+
+      if (isScale) {
+        ctx.drawImage(videoSrc, 0, 0, targetW, targetH);
+      } else if (typeName === '剪輯') {
+        ctx.drawImage(videoSrc, 0, 0, targetW, targetH);
+      } else {
+        const sx = (videoSrc.videoWidth - targetW) / 2;
+        const sy = (videoSrc.videoHeight - targetH) / 2;
+        ctx.drawImage(videoSrc, sx, sy, targetW, targetH, 0, 0, targetW, targetH);
+      }
+      requestAnimationFrame(draw);
+    };
+    requestAnimationFrame(draw);
+  };
+}
+
+document.getElementById('resizeBtn').onclick = () => startProcessing(false);
+document.getElementById('clipBtn').onclick = () => startProcessing(true);
+document.getElementById('scaleBtn').onclick = () => startScaling();
+
+// 截圖
+document.getElementById('shotBtn').onclick = () => {
+  if(!file) return alert('請先上傳影片！');
+  const c = document.createElement('canvas');
+  c.width = video.videoWidth; c.height = video.videoHeight;
+  c.getContext('2d').drawImage(video,0,0);
+  c.toBlob(b => {
+    document.getElementById('shotDl').innerHTML = `<a href="${URL.createObjectURL(b)}" download="${file.name.split('.')[0]}_截圖_${Math.floor(video.currentTime)}秒.png">下載圖片</a>`;
+    document.getElementById('shotLog').textContent = '完成！';
+  },'image/png',1);
+};
+</script>
+</body>
+</html>
