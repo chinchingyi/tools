@@ -1,0 +1,1362 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>旅遊足跡地圖</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- 截圖與PDF庫 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=Noto+Sans+TC:wght@400;700;900&family=Patrick+Hand&display=swap" rel="stylesheet">
+
+    <style>
+        body, html { height: 100%; margin: 0; font-family: 'Noto Sans TC', sans-serif; background-color: #f3f4f6; }
+        #map { height: 100%; width: 100%; z-index: 1; background: #e5e7eb; cursor: default; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Cursors */
+        .cursor-crosshair { cursor: crosshair !important; }
+        .cursor-eraser {
+            cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="%23fff" stroke="%23000" stroke-width="1.5"><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M9 4v16M15 4v16" stroke="%23ccc"/></svg>') 12 12, auto !important;
+        }
+
+        /* Popup */
+        .leaflet-popup-content-wrapper { border-radius: 12px; padding: 0; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        .leaflet-popup-content { margin: 0; width: 260px !important; }
+        .popup-img { width: 100%; height: 140px; object-fit: cover; display: block; border-bottom: 1px solid #eee; }
+        .popup-body { padding: 12px; text-align: center; }
+        .popup-title { font-weight: bold; font-size: 1.1em; color: #374151; margin-bottom: 4px; }
+
+        /* Trip Line (Static to prevent flashing) */
+        .trip-line { 
+            stroke-dasharray: 10, 10; 
+            opacity: 0.8; 
+            cursor: default; 
+        }
+        
+        /* Freehand Line */
+        .freehand-line { stroke: #ef4444; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; fill: none; filter: drop-shadow(1px 1px 2px rgba(0,0,0,0.3)); opacity: 0.8; cursor: pointer; }
+        .freehand-line:hover { stroke: #dc2626; stroke-width: 8; }
+
+        /* Distance Badge */
+        .distance-badge {
+            background: rgba(255, 255, 255, 0.95); border-left: 6px solid #f59e0b;
+            padding: 8px 16px; border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            font-weight: bold; color: #1f2937; font-size: 1.1rem;
+            display: flex; align-items: center; gap: 10px;
+        }
+
+        /* Segment Distance Annotation */
+        .dist-annotation-container {
+            background: rgba(255, 255, 255, 0.95); padding: 4px 10px; border-radius: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3); border: 2px solid #4b5563;
+            transition: transform 0.2s; cursor: grab;
+            display: flex; align-items: center; justify-content: center;
+            width: auto; white-space: nowrap;
+        }
+        .dist-annotation-container:active { cursor: grabbing; }
+        .dist-annotation-text { font-size: 13px; font-weight: 900; color: #1f2937; font-family: 'Noto Sans TC', sans-serif; }
+
+        /* Via Point */
+        .via-point-icon {
+            background: #ffffff; border: 3px solid #8b5cf6; border-radius: 50%;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.4); transition: transform 0.2s; cursor: pointer;
+        }
+        .via-point-icon:hover { transform: scale(1.3); background: #f3f4f6; border-color: #7c3aed; }
+
+        /* Map Photo Annotation */
+        .photo-annotation-container {
+            background-color: #ffffff;
+            padding: 8px 8px 28px 8px; 
+            box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+            border: 1px solid #d1d5db;
+            transition: transform 0.2s; 
+            cursor: grab;
+            display: flex; 
+            flex-direction: column; 
+            align-items: center;
+            width: 180px; 
+            box-sizing: border-box; 
+            height: auto;
+            transform: rotate(-2deg);
+            overflow: hidden; 
+        }
+        .photo-annotation-container:active { cursor: grabbing; }
+        .photo-annotation-container:hover { transform: scale(1.15) rotate(0deg) !important; z-index: 5000 !important; }
+        
+        .photo-annotation-img {
+            width: 100%;
+            height: 125px; 
+            object-fit: cover;
+            display: block;
+            border: 1px solid #f0f0f0; 
+        }
+        
+        .photo-annotation-text {
+            position: absolute;
+            bottom: 4px;
+            left: 8px; 
+            right: 8px;
+            text-align: center; 
+            font-size: 13px; 
+            line-height: 1.2;
+            color: #1f2937; 
+            font-family: 'Patrick Hand', 'Noto Sans TC', sans-serif; 
+            font-weight: 700;
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+            white-space: nowrap;
+        }
+
+        /* Lightbox */
+        #lightbox { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; justify-content: center; align-items: center; padding: 20px; }
+        #lightbox.active { display: flex; }
+        
+        .lightbox-content { 
+            background: white; border-radius: 12px; overflow: hidden; display: flex; 
+            width: 90vw; max-width: 1100px; height: 85vh; 
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); 
+            position: relative;
+        }
+        @media (max-width: 768px) { .lightbox-content { flex-direction: column; height: 90vh; } }
+        
+        .lightbox-img-wrapper { 
+            flex: 3; background: #000; 
+            display: flex; align-items: center; justify-content: center; 
+            overflow: hidden; padding: 0;
+        }
+        .lightbox-img { 
+            width: 100%; height: 100%; object-fit: contain; 
+        }
+        
+        .lightbox-info { 
+            flex: 1; min-width: 250px; 
+            padding: 30px; overflow-y: auto; 
+            background: #fff; display: flex; flex-direction: column; 
+            border-left: 1px solid #f1f5f9; 
+        }
+        
+        .lightbox-close { 
+            position: absolute; top: 15px; right: 15px; width: 40px; height: 40px; 
+            background: rgba(255,255,255,0.2); color: white; border-radius: 50%; 
+            display: flex; align-items: center; justify-content: center; 
+            cursor: pointer; font-weight: bold; font-size: 24px;
+            transition: all 0.2s; z-index: 60;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+        }
+        .lightbox-close:hover { background: rgba(239, 68, 68, 0.8); }
+
+        /* Map Info Overlay (Permanent) */
+        #map-info-overlay {
+            position: absolute; bottom: 30px; right: 20px; z-index: 1000;
+            background: rgba(255, 255, 255, 0.95); padding: 15px 20px;
+            border-radius: 12px; border-left: 6px solid #4f46e5;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            display: block; 
+            font-family: 'Noto Sans TC', sans-serif;
+            min-width: 200px;
+        }
+
+        /* Context Menu */
+        #context-menu { position: absolute; z-index: 3000; background: white; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); padding: 5px 0; min-width: 150px; display: none; border: 1px solid #e5e7eb; }
+        .ctx-item { padding: 8px 16px; cursor: pointer; font-size: 14px; color: #374151; display: flex; align-items: center; gap: 8px; }
+        .ctx-item:hover { background-color: #f3f4f6; color: #4f46e5; }
+        
+        /* Toasts */
+        #add-mode-toast { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 2000; background: linear-gradient(90deg, #10b981, #34d399); color: white; padding: 10px 25px; border-radius: 50px; font-weight: bold; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4); display: none; pointer-events: none; font-size: 16px; border: 2px solid white; }
+        #draw-mode-toast { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 2000; background: linear-gradient(90deg, #ef4444, #f87171); color: white; padding: 10px 25px; border-radius: 50px; font-weight: bold; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4); display: none; pointer-events: none; font-size: 16px; border: 2px solid white; }
+        #delete-mode-toast { position: absolute; top: 60px; left: 50%; transform: translateX(-50%); z-index: 2000; background: rgba(239, 68, 68, 0.9); color: white; padding: 8px 20px; border-radius: 50px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.2); display: none; pointer-events: none; }
+        #eraser-toast { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 2000; background: linear-gradient(90deg, #6b7280, #4b5563); color: white; padding: 10px 25px; border-radius: 50px; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.4); display: none; pointer-events: none; font-size: 16px; border: 2px solid white; }
+
+        /* Q-Version Poster Styling */
+        #q-poster-container {
+            position: fixed; top: 0; left: 0; 
+            width: 1200px; min-height: 100vh;
+            background-color: #fffbef; 
+            background-image: radial-gradient(rgba(209, 213, 219, 0.3) 1px, transparent 1px);
+            background-size: 30px 30px;
+            font-family: 'Patrick Hand', 'Zen Maru Gothic', cursive;
+            padding: 40px; box-sizing: border-box; display: flex; flex-direction: column;
+            z-index: -9999; 
+            pointer-events: none;
+            opacity: 0; 
+        }
+        #q-poster-container.capture-mode {
+            z-index: 9999;
+            opacity: 1;
+        }
+
+        /* Header Redesign */
+        .qp-header { text-align: center; margin-bottom: 30px; position: relative; }
+        .qp-title { 
+            font-size: 72px; color: #b45309; font-weight: 900; 
+            display: inline-block; 
+            text-shadow: 2px 2px 0px #fcd34d, 4px 4px 0px rgba(0,0,0,0.1);
+            font-family: 'Zen Maru Gothic', sans-serif;
+            letter-spacing: 2px;
+        }
+        .qp-info-row {
+            display: flex;
+            justify-content: flex-end; 
+            align-items: center;
+            gap: 20px;
+            padding-right: 40px;
+            margin-top: 5px;
+        }
+        .qp-date, .qp-total-dist { 
+            font-size: 24px; color: #78350f; font-weight: 700; 
+            font-family: 'Patrick Hand', sans-serif;
+            background: transparent; 
+            padding: 0;
+        }
+        
+        .qp-timeline { display: flex; flex-direction: column; gap: 20px; padding: 0 40px; position: relative; flex: 1; }
+        .qp-timeline::before { content: ''; position: absolute; left: 95px; top: 10px; bottom: 10px; width: 0; border-left: 4px dashed #d97706; z-index: 0; opacity: 0.6; }
+        
+        .qp-item { display: flex; gap: 30px; align-items: flex-start; position: relative; z-index: 1; page-break-inside: avoid; margin-bottom: 10px; }
+        .qp-badge { width: 60px; height: 60px; background: #f59e0b; color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 900; border: 3px solid #78350f; box-shadow: 3px 3px 0 #78350f; flex-shrink: 0; transform: rotate(-5deg); margin-top: 10px; }
+        
+        .qp-distance-indicator {
+            margin-left: 95px; 
+            padding-left: 20px;
+            font-size: 18px;
+            color: #78350f;
+            font-weight: bold;
+            font-family: 'Patrick Hand', sans-serif;
+            position: relative;
+            margin-bottom: 10px;
+            margin-top: -10px;
+        }
+        .qp-distance-indicator::before {
+            content: '●'; color: #d97706; position: absolute; left: -5px; top: 0; font-size: 12px;
+        }
+
+        .qp-card { 
+            flex: 1; 
+            background: rgba(255, 255, 255, 0.95); 
+            border-radius: 20px; 
+            padding: 20px; 
+            border: 2px solid #4b5563; 
+            display: flex; 
+            gap: 20px; 
+            align-items: flex-start; 
+            box-shadow: 6px 6px 0px rgba(0,0,0,0.05); 
+        }
+        
+        .qp-illustration { width: 80px; height: 80px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; margin-top: 5px; }
+        .qp-illustration svg { width: 100%; height: 100%; filter: drop-shadow(2px 2px 0px rgba(0,0,0,0.2)); }
+        
+        .qp-content-wrapper { flex: 1; display: flex; gap: 20px; min-width: 0; }
+        .qp-text-col { flex: 1; display: flex; flex-direction: column; }
+        .qp-photo-col { width: 220px; flex-shrink: 0; display: flex; align-items: flex-start; justify-content: center; }
+
+        .qp-name { font-size: 30px; font-weight: 900; color: #1f2937; margin-bottom: 8px; border-bottom: 3px solid #fcd34d; display: inline-block; padding-bottom: 2px; line-height: 1.2;}
+        .qp-desc { font-size: 15px; color: #374151; line-height: 1.5; font-weight: bold; white-space: pre-wrap; text-align: justify; margin: 0; }
+        
+        /* FIX: PDF Photo Frame Sizing - White Border & No Overflow */
+        .qp-photo-frame { 
+            background: white; 
+            padding: 10px; /* White Border */
+            border: 1px solid #d1d5db; 
+            display: block; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+            transform: rotate(2deg); 
+            box-sizing: border-box; /* Key fix */
+            width: 100%;
+            max-width: 220px; 
+            overflow: hidden;
+        }
+        .qp-photo { 
+            width: 100% !important; /* Force fit width of frame */
+            height: auto; 
+            max-height: 160px; 
+            object-fit: cover; 
+            display: block; 
+        }
+
+        .input-error { border-color: #ef4444 !important; background-color: #fef2f2 !important; }
+        .location-item.active-paste { border-color: #6366f1; background-color: #eef2ff; }
+    </style>
+</head>
+<body class="flex flex-col md:flex-row h-screen bg-gray-50 overflow-hidden" onclick="hideContextMenu()">
+
+    <!-- Q-Version Poster Container -->
+    <div id="q-poster-container">
+        <div class="qp-header" id="qp-header-block">
+            <div class="qp-title" id="qp-title-text">我們的旅程</div>
+            <div class="qp-info-row">
+                <div class="qp-date" id="qp-date-display">2023/10/10</div>
+            </div>
+        </div>
+        <div class="qp-timeline" id="qp-timeline-target"></div>
+        <div style="text-align: center; margin-top: auto; color: #9ca3af; font-size: 24px; padding-top: 20px;">Hand-drawn Travel Map</div>
+    </div>
+
+    <!-- Lightbox -->
+    <div id="lightbox">
+        <div class="lightbox-content relative">
+            <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+            <div class="lightbox-img-wrapper">
+                <img id="lb-img" class="lightbox-img" src="">
+            </div>
+            <div class="lightbox-info">
+                <h2 id="lb-title" class="text-3xl font-black text-gray-800 mb-6 border-b pb-4"></h2>
+                <div class="mb-3 text-sm text-indigo-600 font-bold uppercase tracking-widest">✨ 景點介紹</div>
+                <div id="lb-desc" class="text-gray-600 leading-8 text-base text-justify font-medium"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="add-mode-toast"><i class="fas fa-map-marker-alt mr-2"></i>新增模式：點擊地圖任意位置以新增節點</div>
+    <div id="draw-mode-toast"><i class="fas fa-pencil-alt mr-2"></i>手繪模式：左鍵繪圖 / 右鍵拖曳地圖</div>
+    <div id="eraser-toast"><i class="fas fa-eraser mr-2"></i>橡皮擦模式：滑鼠滑過紅線以刪除</div>
+    <div id="delete-mode-toast"><i class="fas fa-trash-alt mr-2"></i>刪除模式：點擊路徑上的圓點或照片即可移除</div>
+
+    <div id="context-menu">
+        <div class="ctx-item" onclick="triggerRename()"><i class="fas fa-edit"></i> 修改名稱</div>
+        <div class="ctx-item" onclick="triggerPhotoUpload()"><i class="fas fa-camera"></i> 上傳/更換照片</div>
+        <div class="border-t border-gray-100 my-1"></div>
+        <div class="ctx-item text-red-600 hover:text-red-700" onclick="triggerDelete()"><i class="fas fa-trash-alt"></i> 刪除此點</div>
+    </div>
+
+    <!-- Sidebar -->
+    <div id="sidebar" class="w-full md:w-96 bg-white shadow-2xl flex flex-col h-full border-r border-gray-200 z-10 overflow-hidden">
+        <div class="p-5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md flex-shrink-0">
+            <h1 class="text-xl font-bold"><i class="fas fa-map-marked-alt mr-2"></i>旅遊足跡生成器</h1>
+            <p class="text-xs opacity-90 mt-1">v6.3</p>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar" id="inputs-container">
+            <div class="bg-white p-3 rounded-xl border border-gray-200 shadow-sm mb-3">
+                <label class="block text-xs font-bold text-gray-500 mb-1">旅遊日期</label>
+                <input type="date" id="trip-date" class="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-indigo-500 focus:border-indigo-500 outline-none mb-2">
+                <label class="block text-xs font-bold text-gray-500 mb-1">自訂標題 (選填)</label>
+                <input type="text" id="custom-title" class="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-indigo-500 focus:border-indigo-500 outline-none" placeholder="預設：我們的旅程">
+            </div>
+
+            <div id="route-inputs-wrapper" class="space-y-2">
+                <div id="start-location-container"></div>
+                <div id="sortable-list" class="space-y-2 pl-2"></div>
+                <div class="relative py-2">
+                    <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-gray-200"></div></div>
+                    <div class="relative flex justify-center">
+                        <button onclick="addInputRow()" class="inline-flex items-center px-4 py-1 border border-gray-300 shadow-sm text-sm font-medium rounded-full text-gray-700 bg-white hover:bg-gray-50 hover:text-indigo-600 transition">
+                            <i class="fas fa-plus mr-1"></i> 新增地點
+                        </button>
+                    </div>
+                </div>
+                <div class="text-[10px] text-gray-500 mt-2 p-2 bg-gray-50 rounded">
+                    <i class="fas fa-info-circle"></i> 提示：找不到地點？試試輸入座標 (例: 24.8878, 121.2865)<br>
+                    <i class="fas fa-paste mt-1"></i> 點擊下方地點白色區塊後，按 Ctrl+V 即可貼上照片
+                </div>
+            </div>
+        </div>
+
+        <div class="p-4 border-t border-gray-200 bg-white space-y-3 flex-shrink-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
+            <div class="flex justify-between items-center bg-gray-50 p-2 rounded-lg border border-gray-200">
+                <span class="text-sm font-bold text-gray-600">總里程數</span>
+                <span class="text-lg font-black text-indigo-700 font-mono"><span id="distance-val">0.0</span> <span class="text-xs font-normal text-gray-500">km</span></span>
+            </div>
+
+            <button id="calc-btn" onclick="calculateRoute()" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold py-3 px-4 rounded-xl shadow-md flex justify-center items-center transition transform hover:scale-[1.02] active:scale-95">
+                <i class="fas fa-calculator mr-2"></i> 計算路徑
+            </button>
+            
+            <div class="grid grid-cols-2 gap-2">
+                <button id="toggle-add-btn" onclick="toggleAddMode()" class="bg-gray-100 hover:bg-green-100 text-gray-700 hover:text-green-600 font-bold py-2 px-2 rounded-xl border border-gray-300 shadow-sm transition flex items-center justify-center text-sm active:bg-green-200">
+                    <i class="fas fa-map-marker-alt mr-1"></i> 新增節點
+                </button>
+                <div class="flex gap-2">
+                    <button id="toggle-draw-btn" onclick="toggleDrawMode()" class="flex-1 bg-gray-100 hover:bg-red-100 text-gray-700 hover:text-red-600 font-bold py-2 px-2 rounded-xl border border-gray-300 shadow-sm transition flex items-center justify-center text-sm active:bg-gray-300">
+                        <i class="fas fa-paint-brush mr-1"></i> 手繪
+                    </button>
+                    <button id="toggle-eraser-btn" onclick="toggleEraserMode()" class="w-10 bg-gray-100 hover:bg-gray-200 text-gray-500 rounded-xl border border-gray-300 flex items-center justify-center" title="橡皮擦"><i class="fas fa-eraser"></i></button>
+                </div>
+                 <button id="toggle-delete-btn" onclick="toggleDeleteMode()" class="col-span-2 bg-gray-100 hover:bg-red-100 text-red-600 font-bold py-2 px-2 rounded-xl border border-gray-300 shadow-sm transition flex items-center justify-center text-sm active:bg-red-200">
+                    <i class="fas fa-trash-alt mr-1"></i> 刪除模式
+                </button>
+            </div>
+
+            <button onclick="generateQPoster()" id="poster-btn" class="w-full bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold py-2 px-1 rounded-lg shadow transition flex flex-col items-center justify-center text-xs active:bg-yellow-600 h-16 border-2 border-black">
+                <i class="fas fa-file-pdf text-lg mb-1"></i> 景點介紹PDF
+            </button>
+        </div>
+    </div>
+
+    <div id="map" class="flex-1 h-full bg-gray-200 relative">
+        <div id="loading-overlay" style="display: none;" class="absolute inset-0 bg-white bg-opacity-90 z-[2000] flex flex-col items-center justify-center">
+            <div class="animate-spin text-5xl mb-4">🌏</div>
+            <p class="text-indigo-800 font-bold text-lg" id="loading-text">地圖準備中...</p>
+        </div>
+        
+        <!-- Permanent Info Overlay -->
+        <div id="map-info-overlay">
+            <h2 class="text-xl font-black text-indigo-900 mb-1">我的旅遊足跡</h2>
+            <div class="text-sm font-bold text-gray-500 mb-2"><i class="fas fa-calendar-alt mr-1"></i> <span id="overlay-date"></span></div>
+            <div class="text-3xl font-black text-blue-600"><span id="overlay-dist">0.0</span> <span class="text-sm text-gray-400">km</span></div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <script>
+        // Hand-drawn Illustrations (SVGs)
+        const illuMountain = `<svg viewBox="0 0 100 100" class="w-full h-full"><path d="M10 90 L50 20 L90 90 Z" fill="#a7f3d0" stroke="#065f46" stroke-width="3"/><path d="M30 90 L60 40 L90 90 Z" fill="#6ee7b7" stroke="#065f46" stroke-width="3"/></svg>`;
+        const illuWater = `<svg viewBox="0 0 100 100" class="w-full h-full"><path d="M10 50 Q30 30 50 50 Q70 70 90 50" stroke="#3b82f6" stroke-width="5" fill="none"/><path d="M10 70 Q30 50 50 70 Q70 90 90 70" stroke="#60a5fa" stroke-width="5" fill="none"/></svg>`;
+        const illuBuild = `<svg viewBox="0 0 100 100" class="w-full h-full"><rect x="20" y="40" width="60" height="50" fill="#fca5a5" stroke="#991b1b" stroke-width="3"/><polygon points="20,40 50,10 80,40" fill="#ef4444" stroke="#991b1b" stroke-width="3"/><rect x="40" y="60" width="20" height="30" fill="#fecaca" stroke="#991b1b" stroke-width="2"/></svg>`;
+        const illuPark = `<svg viewBox="0 0 100 100" class="w-full h-full"><circle cx="30" cy="40" r="20" fill="#86efac" stroke="#166534" stroke-width="3"/><circle cx="70" cy="50" r="25" fill="#4ade80" stroke="#166534" stroke-width="3"/><rect x="45" y="70" width="10" height="20" fill="#78350f"/></svg>`;
+        const illuGeneric = `<svg viewBox="0 0 100 100" class="w-full h-full"><circle cx="50" cy="50" r="35" fill="#fde047" stroke="#d97706" stroke-width="4"/><path d="M35 45 Q50 55 65 45" stroke="#d97706" stroke-width="4" fill="none"/><circle cx="40" cy="35" r="4" fill="#d97706"/><circle cx="60" cy="35" r="4" fill="#d97706"/></svg>`;
+
+        let map, markers = [], photoLayers = [], distanceLayers = [], routePolyline, routePathPoints = [], movingMarker, animationFrameId;
+        let freehandLines = [];
+        let currentTransport = 'car'; 
+        let isDrawMode = false; 
+        let isEraserMode = false; 
+        let isDeleteMode = false; 
+        let isAddMode = false; 
+        let contextMenuTarget = null;
+        let isDrawing = false; let currentFreehandLine = null;
+        let isRightDragging = false; let lastPoint = null;
+        let lastActiveRow = null;
+
+        const hardcodedLocations = {
+            "李騰芳古宅": { lat: 24.887848, lon: 121.286469 },
+            "李騰芳": { lat: 24.887848, lon: 121.286469 }
+        };
+
+        function initMap() {
+            map = L.map('map', { zoomControl: false }).setView([23.5, 121], 7);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
+                attribution: '&copy; OpenStreetMap', 
+                crossOrigin: 'anonymous' 
+            }).addTo(map);
+            L.control.zoom({ position: 'topleft' }).addTo(map);
+            document.getElementById('start-location-container').innerHTML = createInputRowHTML('起點', 'green', '', false);
+            addInputRow('終點', 'red');
+            
+            // Set initial date
+            const today = new Date();
+            document.getElementById('trip-date').valueAsDate = today;
+            document.getElementById('overlay-date').innerText = today.toLocaleDateString('zh-TW');
+            
+            // Listen for date changes
+            document.getElementById('trip-date').addEventListener('change', function() {
+                const d = this.value ? new Date(this.value) : new Date();
+                document.getElementById('overlay-date').innerText = d.toLocaleDateString('zh-TW');
+            });
+            
+            // Global Paste Listener
+            document.addEventListener('paste', handleGlobalPaste);
+
+            map.on('click', function(e) { 
+                hideContextMenu(); 
+                if (isAddMode) {
+                    addWaypointSmart(e.latlng, false);
+                }
+            });
+            map.on('movestart', hideContextMenu);
+
+            // Drawing Logic
+            map.on('mousedown', function(e) {
+                if (isDrawMode) {
+                    if (e.originalEvent.button === 0) { // Left: Draw
+                        isDrawing = true;
+                        map.dragging.disable();
+                        currentFreehandLine = L.polyline([e.latlng], { color: '#ef4444', weight: 5, className: 'freehand-line' }).addTo(map);
+                        currentFreehandLine.on('mouseover', function(ev) { 
+                            if(isEraserMode && ev.originalEvent.buttons === 1) erasePoints(this, ev.latlng);
+                        });
+                        currentFreehandLine.on('click', function(ev) {
+                            if(isEraserMode) erasePoints(this, ev.latlng, true);
+                        });
+                        freehandLines.push(currentFreehandLine);
+                    } else if (e.originalEvent.button === 2) { // Right: Pan
+                        isRightDragging = true;
+                        lastPoint = e.containerPoint;
+                        map.getContainer().style.cursor = 'grabbing';
+                        map.dragging.enable();
+                    }
+                }
+            });
+            
+            function erasePoints(line, latlng, forceAll = false) {
+                if(forceAll) { map.removeLayer(line); return; }
+                map.removeLayer(line); 
+            }
+
+            map.on('mousemove', function(e) {
+                if (isDrawMode) {
+                    if (isDrawing && currentFreehandLine && !isRightDragging) {
+                        const lastPt = currentFreehandLine.getLatLngs().slice(-1)[0];
+                        if(!lastPt || map.latLngToContainerPoint(lastPt).distanceTo(e.containerPoint) > 5) {
+                             currentFreehandLine.addLatLng(e.latlng);
+                        }
+                        const containerPoint = map.latLngToContainerPoint(e.latlng);
+                        const size = map.getSize();
+                        const buffer = 40;
+                        if (containerPoint.x < buffer) map.panBy([-10, 0], {animate: false});
+                        if (containerPoint.x > size.x - buffer) map.panBy([10, 0], {animate: false});
+                        if (containerPoint.y < buffer) map.panBy([0, -10], {animate: false});
+                        if (containerPoint.y > size.y - buffer) map.panBy([0, 10], {animate: false});
+                    }
+                    if(isEraserMode && e.originalEvent.buttons === 1) {
+                         freehandLines.forEach(line => {
+                             const pts = line.getLatLngs();
+                             for(let p of pts) {
+                                 if(map.latLngToContainerPoint(p).distanceTo(e.containerPoint) < 15) {
+                                     map.removeLayer(line); break;
+                                 }
+                             }
+                         });
+                    }
+                }
+                if (isRightDragging) {
+                    const currentPoint = e.containerPoint;
+                    const x = lastPoint.x - currentPoint.x;
+                    const y = lastPoint.y - currentPoint.y;
+                    map.panBy([x, y], { animate: false });
+                    lastPoint = currentPoint;
+                }
+            });
+
+            map.on('mouseup', function() {
+                if (isDrawMode) {
+                    if (isDrawing) {
+                        isDrawing = false;
+                        map.dragging.enable();
+                        spliceHandDrawnPath(currentFreehandLine.getLatLngs());
+                    }
+                    if (isRightDragging) {
+                        isRightDragging = false;
+                        updateCursor();
+                    }
+                }
+            });
+            
+            map.getContainer().addEventListener('contextmenu', function(e) {
+                if (isDrawMode) e.preventDefault();
+            });
+        }
+
+        async function spliceHandDrawnPath(latlngs) {
+            if(!latlngs || latlngs.length < 5) return; 
+            if (!routePathPoints || routePathPoints.length === 0) return;
+
+            const drawnPoints = latlngs.map(ll => [ll.lat, ll.lng]);
+            const startP = drawnPoints[0];
+            const endP = drawnPoints[drawnPoints.length-1];
+            
+            function findClosestIndex(pt) {
+                let minDist = Infinity;
+                let idx = -1;
+                for(let i=0; i<routePathPoints.length; i+=5) { 
+                    const d = map.distance(pt, routePathPoints[i]);
+                    if (d < minDist) { minDist = d; idx = i; }
+                }
+                if(idx !== -1) {
+                    const start = Math.max(0, idx - 20);
+                    const end = Math.min(routePathPoints.length, idx + 20);
+                    for(let i=start; i<end; i++) {
+                         const d = map.distance(pt, routePathPoints[i]);
+                         if (d < minDist) { minDist = d; idx = i; }
+                    }
+                }
+                return { idx, dist: minDist };
+            }
+
+            const closestStart = findClosestIndex(startP);
+            const closestEnd = findClosestIndex(endP);
+            
+            if (closestStart.idx !== -1 && closestEnd.idx !== -1 && closestStart.idx !== closestEnd.idx) {
+                const lower = Math.min(closestStart.idx, closestEnd.idx);
+                const upper = Math.max(closestStart.idx, closestEnd.idx);
+                
+                if (closestStart.idx > closestEnd.idx) {
+                    drawnPoints.reverse();
+                }
+
+                map.removeLayer(currentFreehandLine);
+                routePathPoints.splice(lower, upper - lower, ...drawnPoints);
+                
+                if(routePolyline) map.removeLayer(routePolyline);
+                routePolyline = L.polyline(routePathPoints, { color: '#6366f1', weight: 6, className: 'trip-line' }).addTo(map);
+                
+                let totalDist = 0;
+                for(let i=0; i<routePathPoints.length-1; i++) totalDist += map.distance(routePathPoints[i], routePathPoints[i+1]);
+                const km = (totalDist/1000).toFixed(1);
+                document.getElementById('distance-val').innerText = km;
+                document.getElementById('overlay-dist').innerText = km;
+                
+                recalculateSegmentDistances(routePathPoints);
+
+            } else {
+                freehandLines.push(currentFreehandLine);
+            }
+        }
+
+        function recalculateSegmentDistances(points) {
+             distanceLayers.forEach(l => { if(l.marker) map.removeLayer(l.marker); if(l.line) map.removeLayer(l.line); });
+             distanceLayers = [];
+             
+             let markerIndices = [];
+             markers.forEach(m => {
+                 let minDist = Infinity;
+                 let bestIdx = -1;
+                 const mPos = m.getLatLng();
+                 for(let i=0; i<points.length; i++) {
+                     const d = map.distance(mPos, points[i]);
+                     if(d < minDist) { minDist = d; bestIdx = i; }
+                 }
+                 markerIndices.push(bestIdx);
+             });
+             
+             for(let i=0; i<markerIndices.length-1; i++) {
+                 const startIdx = markerIndices[i];
+                 const endIdx = markerIndices[i+1];
+                 if (startIdx === -1 || endIdx === -1) continue;
+                 
+                 let segmentDist = 0;
+                 const step = startIdx < endIdx ? 1 : -1;
+                 for(let j=startIdx; j !== endIdx; j += step) {
+                     segmentDist += map.distance(points[j], points[j+step]);
+                 }
+                 const distKm = (segmentDist / 1000).toFixed(1) + " km";
+                 
+                 const midIdx = Math.floor((startIdx + endIdx) / 2);
+                 const midPt = points[midIdx];
+                 createDistanceCallout(midPt, distKm);
+             }
+        }
+
+        function updateCursor() {
+            const mapContainer = document.getElementById('map');
+            mapContainer.classList.remove('cursor-crosshair', 'cursor-eraser');
+            mapContainer.style.cursor = '';
+            
+            if (isDrawMode) {
+                if (isEraserMode) {
+                    mapContainer.classList.add('cursor-eraser');
+                } else {
+                    mapContainer.classList.add('cursor-crosshair');
+                }
+            } else if (isAddMode) {
+                 mapContainer.classList.add('cursor-crosshair');
+            }
+        }
+
+        function toggleAddMode() {
+            isAddMode = !isAddMode;
+            if(isDrawMode) toggleDrawMode();
+            if(isDeleteMode) toggleDeleteMode();
+            
+            const btn = document.getElementById('toggle-add-btn');
+            const toast = document.getElementById('add-mode-toast');
+            
+            if(isAddMode) {
+                btn.innerHTML = '結束新增';
+                btn.classList.replace('bg-gray-100', 'bg-green-100');
+                btn.classList.replace('text-gray-700', 'text-green-600');
+                toast.style.display = 'block';
+            } else {
+                btn.innerHTML = '<i class="fas fa-map-marker-alt mr-1"></i> 新增節點';
+                btn.classList.replace('bg-green-100', 'bg-gray-100');
+                btn.classList.replace('text-green-600', 'text-gray-700');
+                toast.style.display = 'none';
+            }
+            updateCursor();
+        }
+
+        function toggleDrawMode() {
+            isDrawMode = !isDrawMode;
+            isEraserMode = false; 
+            if(isDeleteMode) toggleDeleteMode();
+            if(isAddMode) toggleAddMode(); 
+
+            const btn = document.getElementById('toggle-draw-btn');
+            const toast = document.getElementById('draw-mode-toast');
+            const eraserBtn = document.getElementById('toggle-eraser-btn');
+            
+            if (isDrawMode) {
+                btn.innerHTML = '<i class="fas fa-check mr-1"></i> 結束手繪'; btn.classList.replace('bg-gray-100', 'bg-red-100'); btn.classList.replace('text-gray-700', 'text-red-600');
+                eraserBtn.classList.remove('hidden');
+                toast.style.display = 'block'; 
+                map.dragging.disable();
+            } else {
+                btn.innerHTML = '<i class="fas fa-paint-brush mr-1"></i> 🖌️ 手繪'; btn.classList.replace('bg-red-100', 'bg-gray-100'); btn.classList.replace('text-red-600', 'text-gray-700');
+                eraserBtn.classList.add('hidden');
+                toast.style.display = 'none'; 
+                map.dragging.enable();
+            }
+            updateCursor();
+        }
+
+        function toggleEraserMode() {
+            isEraserMode = !isEraserMode;
+            const btn = document.getElementById('toggle-eraser-btn');
+            const toast = document.getElementById('eraser-toast'); 
+            
+            if(isEraserMode) {
+                btn.classList.replace('bg-gray-100', 'bg-gray-300');
+                toast.style.display = 'block'; 
+            } else {
+                btn.classList.replace('bg-gray-300', 'bg-gray-100');
+                toast.style.display = 'none';
+            }
+            updateCursor();
+        }
+        
+        function toggleDeleteMode() {
+             isDeleteMode = !isDeleteMode;
+             if(isDrawMode) toggleDrawMode(); 
+             if(isAddMode) toggleAddMode(); 
+
+             const btn = document.getElementById('toggle-delete-btn');
+             const toast = document.getElementById('delete-mode-toast');
+             if (isDeleteMode) {
+                 btn.innerHTML = '結束刪除'; btn.classList.replace('bg-gray-100', 'bg-red-100'); btn.classList.replace('text-red-600', 'text-red-800');
+                 toast.style.display = 'block'; document.getElementById('map').style.cursor = 'not-allowed';
+             } else {
+                 btn.innerHTML = '<i class="fas fa-trash-alt mr-1"></i> 刪除模式'; btn.classList.replace('bg-red-100', 'bg-gray-100'); btn.classList.replace('text-red-800', 'text-red-600');
+                 toast.style.display = 'none'; document.getElementById('map').style.cursor = '';
+             }
+         }
+
+        function clearFreehand() {
+            freehandLines.forEach(line => map.removeLayer(line));
+            freehandLines = [];
+        }
+        
+        function undoFreehand() {
+            if (freehandLines.length > 0) {
+                const line = freehandLines.pop();
+                map.removeLayer(line);
+            }
+        }
+
+        function createInputRowHTML(label, color, presetValue = '', isSortable = true) {
+            const labelText = isSortable ? (label === '終點' ? '終點' : '地點') : '起點';
+            const colorClass = isSortable ? (label === '終點' ? 'red' : 'yellow') : 'green';
+            let sortBtns = isSortable ? `<div class="flex flex-col justify-center gap-1 ml-2"><button onclick="moveRow(this, -1)" class="w-6 h-6 rounded bg-gray-100 hover:bg-gray-200 text-gray-500 text-xs flex items-center justify-center transition"><i class="fas fa-chevron-up"></i></button><button onclick="moveRow(this, 1)" class="w-6 h-6 rounded bg-gray-100 hover:bg-gray-200 text-gray-500 text-xs flex items-center justify-center transition"><i class="fas fa-chevron-down"></i></button></div>` : '';
+            return `
+                <div class="location-item bg-white p-3 rounded-lg border border-gray-200 shadow-sm relative hover:border-${colorClass}-400 transition flex items-start gap-2" data-type="${isSortable ? 'sortable' : 'fixed'}">
+                    <div class="flex-1 flex flex-col gap-2">
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full bg-${colorClass}-500 marker-dot"></div><span class="text-xs font-bold text-gray-600 label-text">${labelText}</span></div>
+                            ${isSortable ? '<button onclick="removeRow(this)" class="text-gray-300 hover:text-red-500 transition px-1"><i class="fas fa-times"></i></button>' : ''}
+                        </div>
+                        <input type="text" value="${presetValue}" oninput="clearCache(this)" onclick="activateRow(this.closest('.location-item'))" class="loc-name w-full bg-gray-50 border border-gray-200 rounded px-2 py-1.5 text-sm focus:bg-white focus:ring-1 focus:ring-indigo-500 focus:outline-none transition" placeholder="輸入地點 (點此按Ctrl+V貼上照片)">
+                        <div class="relative">
+                            <textarea class="loc-desc w-full bg-gray-50 border border-gray-200 rounded px-2 py-1.5 text-xs focus:bg-white focus:ring-1 focus:ring-indigo-500 focus:outline-none transition h-16 resize-none" placeholder="輸入簡介..."></textarea>
+                            <div class="flex absolute bottom-1 right-1 gap-1">
+                                <button onclick="openGoogleSearch(this)" class="bg-blue-100 text-blue-600 text-[10px] px-2 py-0.5 rounded hover:bg-blue-200 transition" title="Google 搜尋"><i class="fas fa-search"></i> Google</button>
+                                <button onclick="fetchDescription(this)" class="bg-indigo-100 text-indigo-600 text-[10px] px-2 py-0.5 rounded hover:bg-indigo-200 transition" title="透過網路搜尋自動生成">✨ Auto (Wiki)</button>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <label class="flex items-center space-x-1 cursor-pointer text-xs text-indigo-500 hover:text-indigo-700 transition px-1 py-0.5 rounded hover:bg-indigo-50"><i class="fas fa-camera"></i><span>照片</span><input type="file" accept="image/*" class="loc-photo hidden" onchange="previewImage(this)"></label>
+                        </div>
+                        <div class="image-preview mt-1 hidden h-20 w-full bg-gray-100 rounded-lg overflow-hidden relative group"><img src="" class="w-full h-full object-cover"><button onclick="removePhoto(this)" class="absolute top-1 right-1 bg-black bg-opacity-50 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition">×</button></div>
+                    </div>${sortBtns}
+                </div>`;
+        }
+        
+        function activateRow(element) {
+            document.querySelectorAll('.location-item').forEach(el => el.classList.remove('active-paste'));
+            if(element) {
+                element.classList.add('active-paste');
+                lastActiveRow = element;
+            }
+        }
+
+        // Global Paste Handler
+        function handleGlobalPaste(e) {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            let blob = null;
+
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf("image") === 0) {
+                    blob = items[i].getAsFile();
+                    break;
+                }
+            }
+
+            if (blob) {
+                let targetRow = null;
+                if (document.activeElement && document.activeElement.closest('.location-item')) {
+                    targetRow = document.activeElement.closest('.location-item');
+                } else if (lastActiveRow && document.body.contains(lastActiveRow)) {
+                    targetRow = lastActiveRow;
+                }
+
+                if (targetRow) {
+                    e.preventDefault();
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        const base64 = event.target.result;
+                        const photoInput = targetRow.querySelector('.loc-photo');
+                        const previewDiv = targetRow.querySelector('.image-preview');
+                        const img = previewDiv.querySelector('img');
+
+                        img.src = base64;
+                        photoInput.dataset.base64 = base64;
+                        delete photoInput.dataset.wikiPhoto;
+                        previewDiv.classList.remove('hidden');
+                        calculateRoute(true);
+                    };
+                    reader.readAsDataURL(blob);
+                }
+            }
+        }
+
+        function openGoogleSearch(btn) {
+            const container = btn.closest('.location-item');
+            const name = container.querySelector('.loc-name').value.trim();
+            if(name) window.open(`https://www.google.com/search?q=${encodeURIComponent(name)}`, '_blank'); else alert("請先輸入地點名稱");
+        }
+
+        async function fetchDescription(btn) {
+            const container = btn.closest('.location-item');
+            const name = container.querySelector('.loc-name').value.trim();
+            const textarea = container.querySelector('.loc-desc');
+            const photoInput = container.querySelector('.loc-photo');
+            const imgPreview = container.querySelector('.image-preview');
+            const imgEl = imgPreview.querySelector('img');
+
+            if (!name) { alert("請先輸入地點名稱"); return; }
+            btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            
+            try {
+                let searchUrl = `https://zh.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(name)}&format=json&origin=*`;
+                let searchRes = await fetch(searchUrl).then(r => r.json());
+                
+                if (!searchRes.query || searchRes.query.search.length === 0) {
+                     let simpleName = name.replace(/(.+)[縣市區鄉鎮](.+)/, '$2'); 
+                     simpleName = simpleName.replace(/風景區|生態公園|公園|遊樂園/g, '');
+                     if (simpleName && simpleName !== name) {
+                         searchUrl = `https://zh.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(simpleName)}&format=json&origin=*`;
+                         searchRes = await fetch(searchUrl).then(r => r.json());
+                     }
+                }
+
+                let found = false;
+                if (searchRes.query && searchRes.query.search.length > 0) {
+                    const pageId = searchRes.query.search[0].pageid;
+                    const contentUrl = `https://zh.wikipedia.org/w/api.php?action=query&prop=extracts|pageimages&exchars=600&explaintext&pithumbsize=400&pageids=${pageId}&format=json&origin=*`;
+                    const contentRes = await fetch(contentUrl).then(r => r.json());
+                    const page = contentRes.query.pages[pageId];
+                    if (page) {
+                        if(page.extract) {
+                            let text = page.extract.replace(/\s+/g, ' ');
+                            const targetLen = 200;
+                            if (text.length > targetLen) {
+                                let cutIndex = text.indexOf('。', 180);
+                                if (cutIndex !== -1 && cutIndex < 350) {
+                                    text = text.substring(0, cutIndex + 1);
+                                } else {
+                                    cutIndex = text.lastIndexOf('。', 250);
+                                    if (cutIndex > 100) {
+                                        text = text.substring(0, cutIndex + 1);
+                                    } else {
+                                        text = text.substring(0, 220) + "..."; 
+                                    }
+                                }
+                            }
+                            textarea.value = text;
+                            found = true;
+                        }
+                        if(page.thumbnail && !photoInput.dataset.base64) {
+                             imgEl.src = page.thumbnail.source;
+                             photoInput.dataset.wikiPhoto = page.thumbnail.source;
+                             imgPreview.classList.remove('hidden');
+                        }
+                    }
+                }
+                if (!found) textarea.value = "Wiki 查無資料，請嘗試 Google 搜尋。";
+            } catch (e) { console.error(e); textarea.value = "連線錯誤。"; }
+            btn.disabled = false; btn.innerHTML = '✨ Auto';
+        }
+
+        function preprocessAddress(addr) {
+             if(!addr) return "";
+             if (/^-?\d+(\.\d+)?,\s*-?\d+(\.\d+)?$/.test(addr)) return "COORD:" + addr;
+             let clean = addr;
+             clean = clean.replace(/^北市/g, "台北市");
+             clean = clean.replace(/^新北/g, "新北市");
+             clean = clean.replace(/台/g, "臺");
+             if (clean.includes("李騰芳古宅") || clean.includes("李騰芳")) return "HARDCODE:LI";
+             clean = clean.replace(/實中/g, "實驗中學");
+             clean = clean.replace(/女中/g, "女子高級中學");
+             clean = clean.replace(/附中/g, "附屬高級中學");
+             clean = clean.replace(/私立/g, "");
+             clean = clean.replace(/國立/g, "");
+             clean = clean.replace(/市立/g, "");
+             clean = clean.replace(/\d+號/g, ""); 
+             clean = clean.replace(/\d+樓/g, "");
+             return clean.trim();
+        }
+
+        function addInputRow(label = '地點', color = 'yellow') {
+            const div = document.createElement('div'); div.innerHTML = createInputRowHTML(label, color, '', true);
+            document.getElementById('sortable-list').appendChild(div.firstElementChild); updateLabels();
+        }
+        function moveRow(btn, direction) {
+            const row = btn.closest('.location-item'); const container = document.getElementById('sortable-list');
+            if (direction === -1) { const prev = row.previousElementSibling; if (prev) container.insertBefore(row, prev); } else { const next = row.nextElementSibling; if (next) container.insertBefore(next, row); }
+            updateLabels(); calculateRoute(false);
+        }
+        function updateLabels() {
+            const rows = document.querySelectorAll('#sortable-list .location-item');
+            rows.forEach((row, index) => {
+                const label = row.querySelector('.label-text'); const dot = row.querySelector('.marker-dot');
+                if (index === rows.length - 1) { label.innerText = '終點'; dot.className = 'w-2 h-2 rounded-full bg-red-500 marker-dot'; row.classList.replace('hover:border-yellow-400', 'hover:border-red-400'); } 
+                else { label.innerText = '地點'; dot.className = 'w-2 h-2 rounded-full bg-yellow-500 marker-dot'; row.classList.replace('hover:border-red-400', 'hover:border-yellow-400'); }
+            });
+        }
+        function addWaypointSmart(latlng, isFromLine = false) {
+            const div = document.createElement('div'); let name = isFromLine ? `路徑調整點` : `自訂點 (${latlng.lat.toFixed(3)}, ${latlng.lng.toFixed(3)})`;
+            div.innerHTML = createInputRowHTML('地點', 'yellow', name, true); const newElem = div.firstElementChild;
+            newElem.dataset.lat = latlng.lat; newElem.dataset.lng = latlng.lng; newElem.dataset.locked = "true";
+            if(isFromLine) newElem.dataset.isViaPoint = "true";
+            const list = document.getElementById('sortable-list');
+            if (list.children.length > 0) list.insertBefore(newElem, list.lastElementChild); else list.appendChild(newElem);
+            updateLabels(); calculateRoute(false);
+        }
+        function clearCache(input) { const item = input.closest('.location-item'); delete item.dataset.lat; delete item.dataset.lng; input.classList.remove('input-error'); }
+        function removeRow(btn) { btn.closest('.location-item').remove(); updateLabels(); calculateRoute(false); }
+        function removePhoto(btn) { 
+            const preview = btn.closest('.image-preview'); 
+            const input = preview.parentElement.querySelector('.loc-photo'); 
+            input.value = ''; 
+            delete input.dataset.base64; 
+            delete input.dataset.wikiPhoto;
+            preview.classList.add('hidden'); 
+            calculateRoute(true); 
+        }
+
+        function previewImage(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const previewDiv = input.closest('.location-item').querySelector('.image-preview');
+                    previewDiv.querySelector('img').src = e.target.result; previewDiv.classList.remove('hidden');
+                    input.dataset.base64 = e.target.result; calculateRoute(true);
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+        function openLightbox(imgSrc, title, desc) { document.getElementById('lb-img').src = imgSrc; document.getElementById('lb-title').innerText = title; document.getElementById('lb-desc').innerText = desc || "尚無介紹"; document.getElementById('lightbox').classList.add('active'); }
+        function closeLightbox() { document.getElementById('lightbox').classList.remove('active'); }
+
+        async function smartGeocode(query) {
+            if (!query) return null;
+            const cleanQuery = preprocessAddress(query);
+            if (cleanQuery === "HARDCODE:LI") return { lat: 24.887848, lon: 121.286469, name: "李騰芳古宅" };
+            if (cleanQuery.startsWith("COORD:")) {
+                const parts = cleanQuery.replace("COORD:", "").split(",");
+                return { lat: parseFloat(parts[0]), lon: parseFloat(parts[1]), name: "自訂座標" };
+            }
+            let res = await geocode(cleanQuery); if (res) return res;
+            if (!cleanQuery.includes('台灣') && !cleanQuery.includes('Taiwan')) {
+                 let resTw = await geocode(cleanQuery + ", 台灣");
+                 if (resTw) return resTw;
+            }
+            if (cleanQuery.length > 5) {
+                 // Try stripping location parts?
+            }
+            return null;
+        }
+        async function geocode(query) {
+            try { const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`); const data = await res.json(); return data.length > 0 ? { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon), name: query } : null; } catch (e) { return null; }
+        }
+        async function fetchOSRMRoute(coords) {
+            const coordString = coords.map(c => `${c[1]},${c[0]}`).join(';');
+            let profile = 'driving'; // Default to driving
+            const url = `https://router.project-osrm.org/route/v1/${profile}/${coordString}?overview=full&geometries=geojson`;
+            try { const res = await fetch(url); const data = await res.json(); if (data.code === 'Ok' && data.routes.length > 0) { const route = data.routes[0]; document.getElementById('distance-val').innerText = (route.distance / 1000).toFixed(1); return route.geometry.coordinates.map(c => [c[1], c[0]]); } } catch (e) { console.error(e); } return null;
+        }
+        function generateLinearPath(waypoints) {
+            let path = []; let dist = 0; const R = 6371; 
+            for (let i = 0; i < waypoints.length - 1; i++) {
+                const start = waypoints[i]; const end = waypoints[i+1];
+                const dLat = (end[0]-start[0]) * Math.PI/180; const dLon = (end[1]-start[1]) * Math.PI/180;
+                const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(start[0]*Math.PI/180)*Math.cos(end[0]*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
+                const c = 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); dist += 6371 * c;
+                const steps = 30; for (let j = 0; j <= steps; j++) path.push([start[0] + (end[0] - start[0]) * (j / steps), start[1] + (end[1] - start[1]) * (j / steps)]);
+            }
+            document.getElementById('distance-val').innerText = dist.toFixed(1); return path;
+        }
+
+        async function calculateRoute(isQuickUpdate = false) {
+            if(movingMarker) map.removeLayer(movingMarker); cancelAnimationFrame(animationFrameId);
+            const loading = document.getElementById('loading-overlay');
+            const calcBtn = document.getElementById('calc-btn');
+            loading.classList.remove('hidden'); loading.classList.add('flex');
+            
+            try {
+                if (!isQuickUpdate) {
+                    const startItem = document.querySelector('#start-location-container .location-item');
+                    const listItems = Array.from(document.querySelectorAll('#sortable-list .location-item'));
+                    const items = [startItem, ...listItems].filter(item => item !== null);
+                    
+                    const hasNames = items.some(item => item.querySelector('.loc-name').value.trim() !== "");
+                    if (!hasNames) {
+                        loading.classList.add('hidden'); loading.classList.remove('flex');
+                        return; // Silent exit
+                    }
+
+                    let tempValidLocations = []; let photoCounter = 0; let hasError = false;
+
+                    for (let i = 0; i < items.length; i++) {
+                        const item = items[i]; const nameInput = item.querySelector('.loc-name');
+                        const name = nameInput.value.trim(); 
+                        const photoInput = item.querySelector('.loc-photo');
+                        const photo = photoInput.dataset.base64 || photoInput.dataset.wikiPhoto;
+                        const desc = item.querySelector('.loc-desc').value;
+                        nameInput.classList.remove('input-error');
+                        if (item.dataset.lat && item.dataset.lng) {
+                            tempValidLocations.push({ lat: parseFloat(item.dataset.lat), lon: parseFloat(item.dataset.lng), name: name || "自訂點", photo: photo, desc: desc, element: item, photoIndex: photo ? photoCounter++ : -1 });
+                        } else if (name) {
+                            const res = await smartGeocode(name);
+                            if (res) {
+                                if(!photo) { /* fetch inside smartGeocode logic if needed */ }
+                                res.photo = photo; res.desc = desc; res.element = item; res.photoIndex = photo ? photoCounter++ : -1;
+                                tempValidLocations.push(res); item.dataset.lat = res.lat; item.dataset.lng = res.lon;
+                            } else { nameInput.classList.add('input-error'); hasError = true; }
+                            await new Promise(r => setTimeout(r, 1500)); 
+                        }
+                    }
+                    if (hasError || tempValidLocations.length < 2) {
+                        if (hasError) alert("部分地點搜尋失敗。"); 
+                        else if (items.length > 1 && items[0].querySelector('.loc-name').value && items[1].querySelector('.loc-name').value) alert("請至少輸入起點和終點。");
+                        return; 
+                    }
+                    markers.forEach(m => map.removeLayer(m)); markers = [];
+                    photoLayers.forEach(l => { if(l.line) map.removeLayer(l.line); if(l.marker) map.removeLayer(l.marker); }); photoLayers = [];
+                    distanceLayers.forEach(l => { if(l.marker) map.removeLayer(l.marker); if(l.line) map.removeLayer(l.line); }); distanceLayers = [];
+                    
+                    tempValidLocations.forEach((loc, idx) => {
+                        const isVia = (idx > 0 && idx < tempValidLocations.length - 1);
+                        createMarker(loc.lat, loc.lon, loc.name, loc.photo, loc.desc, isVia, loc.element, loc.photoIndex);
+                    });
+                    calcBtn.innerHTML = '<i class="fas fa-calculator mr-2"></i> 重新計算路徑';
+                }
+                
+                if (markers.length < 2) return;
+                const waypoints = markers.map(m => { const ll = m.getLatLng(); return [ll.lat, ll.lng]; });
+                let rawRouteData = null;
+                const osrmData = await fetchOSRMRouteData(waypoints);
+                if (osrmData) {
+                        routePathPoints = osrmData.geometry.coordinates.map(c => [c[1], c[0]]);
+                        rawRouteData = osrmData;
+                } else {
+                    routePathPoints = generateLinearPath(waypoints);
+                }
+
+                if (routePolyline) map.removeLayer(routePolyline);
+                routePolyline = L.polyline(routePathPoints, { color: '#6366f1', weight: 6, className: 'trip-line' }).addTo(map);
+                routePolyline.on('mouseover', function() { this.setStyle({ color: '#4f46e5', weight: 8 }); });
+                routePolyline.on('mouseout', function() { this.setStyle({ color: '#6366f1', weight: 6 }); });
+                
+                if (rawRouteData && rawRouteData.legs) addDistanceCallouts(rawRouteData.legs);
+                
+                setTimeout(() => { 
+                    let bounds = routePolyline.getBounds(); 
+                    markers.forEach(m => bounds.extend(m.getLatLng()));
+                    if (bounds.isValid()) map.fitBounds(bounds.pad(0.15)); 
+                }, 200);
+                
+                // Update Overlay
+                const totalDistKm = document.getElementById('distance-val').innerText;
+                document.getElementById('overlay-dist').innerText = totalDistKm;
+                
+                document.getElementById('action-buttons').classList.remove('hidden'); document.getElementById('action-buttons').classList.add('grid');
+            } catch(e) { 
+                console.error("Route calculation error:", e); 
+                // Removed alert here to fix the initial load error
+            } finally { 
+                loading.classList.add('hidden'); loading.classList.remove('flex'); 
+            }
+        }
+        
+        async function fetchOSRMRouteData(coords) {
+             const coordString = coords.map(c => `${c[1]},${c[0]}`).join(';');
+            let profile = 'driving';
+            const url = `https://router.project-osrm.org/route/v1/${profile}/${coordString}?overview=full&geometries=geojson`;
+            try { 
+                const res = await fetch(url); 
+                const data = await res.json(); 
+                if (data.code === 'Ok' && data.routes.length > 0) { 
+                     const route = data.routes[0]; 
+                     const distKm = (route.distance / 1000).toFixed(1);
+                     document.getElementById('distance-val').innerText = distKm; 
+                     return route; 
+                } 
+            } catch (e) { console.error(e); } 
+            return null;
+        }
+
+        function addDistanceCallouts(legs) {
+             if (legs.length !== markers.length - 1) return;
+             legs.forEach((leg, i) => {
+                 const startM = markers[i]; const endM = markers[i+1];
+                 const distKm = (leg.distance / 1000).toFixed(1) + " km";
+                 const p1 = startM.getLatLng(); const p2 = endM.getLatLng();
+                 const midLat = (p1.lat + p2.lat) / 2; const midLng = (p1.lng + p2.lng) / 2;
+                 createDistanceCallout([midLat, midLng], distKm);
+             });
+        }
+        
+        function createDistanceCallout(anchorLatLng, text) {
+             const labelLatLng = [anchorLatLng[0] + 0.005, anchorLatLng[1] + 0.005];
+             const icon = L.divIcon({ className: '', html: `<div class="dist-annotation-container"><div class="dist-annotation-text">${text}</div></div>`, iconSize: [60, 24], iconAnchor: [30, 12] });
+             const marker = L.marker(labelLatLng, { draggable: true, icon: icon, zIndexOffset: 2000 }).addTo(map);
+             const line = L.polyline([anchorLatLng, labelLatLng], { color: '#4b5563', weight: 2, dashArray: '2, 4', opacity: 0.8 }).addTo(map);
+             marker.on('drag', function(e) { line.setLatLngs([anchorLatLng, marker.getLatLng()]); });
+             distanceLayers.push({ marker: marker, line: line });
+        }
+
+        function createMarker(lat, lon, title, photo, desc, isVia, domElement, photoIndex) {
+            let markerOptions = { draggable: !isDeleteMode && !isDrawMode }; 
+            if (isVia) markerOptions.icon = L.divIcon({ className: 'via-point-icon', iconSize: [14, 14], iconAnchor: [7, 7] });
+            const marker = L.marker([lat, lon], markerOptions).addTo(map);
+            marker.bindTooltip(title, { direction: 'top', offset: [0, -20] });
+            
+            if (photo) {
+                createPhotoCallout(marker, photo, title, desc, photoIndex);
+            } else {
+                let popupContent = document.createElement('div'); popupContent.className = 'popup-body';
+                let titleDiv = document.createElement('div'); titleDiv.className = 'popup-title'; titleDiv.innerText = title; popupContent.appendChild(titleDiv);
+                
+                if(desc) { let descDiv = document.createElement('div'); descDiv.className = 'text-xs text-gray-500 text-left mt-1'; descDiv.innerText = desc.substring(0, 50) + (desc.length > 50 ? '...' : ''); popupContent.appendChild(descDiv); }
+                if (domElement && domElement.dataset.type === 'sortable') {
+                    let delBtn = document.createElement('button'); delBtn.className = 'mt-2 w-full bg-red-100 text-red-600 hover:bg-red-200 py-1 rounded text-xs font-bold transition'; delBtn.innerHTML = '<i class="fas fa-trash-alt mr-1"></i> 刪除';
+                    delBtn.onclick = function() { map.removeLayer(marker); domElement.remove(); updateLabels(); calculateRoute(false); }; popupContent.appendChild(delBtn);
+                }
+                marker.bindPopup(popupContent); 
+                marker.on('click', function() { if(isDeleteMode) { map.removeLayer(marker); if(domElement) domElement.remove(); updateLabels(); calculateRoute(false); } else if (!isVia) { marker.openPopup(); } });
+            }
+            
+            marker.on('drag', function(e) { updatePhotoLine(marker); });
+            marker.on('dragend', function(e) { if(domElement) { const ll = marker.getLatLng(); domElement.dataset.lat = ll.lat; domElement.dataset.lng = ll.lng; domElement.dataset.locked = "true"; } calculateRoute(true); });
+            marker.on('contextmenu', function(e) { L.DomEvent.stopPropagation(e); showContextMenu(e, marker, domElement); });
+            markers.push(marker);
+        }
+
+        function createPhotoCallout(targetMarker, photoUrl, title, desc, index) {
+            const startLatLng = targetMarker.getLatLng();
+            
+            const spreadFactor = 0.15; 
+            const stagger = (index % 3) * 0.05; 
+            const direction = index % 2 === 0 ? 1 : -1;
+            
+            const latOffset = (spreadFactor + stagger) * (index % 2 === 0 ? 1 : 0.5); 
+            const lngOffset = (spreadFactor + stagger) * direction;
+
+            const photoLatLng = [startLatLng.lat + latOffset, startLatLng.lng + lngOffset];
+            const photoIcon = L.divIcon({
+                className: '', html: `<div class="photo-annotation-container" style="transform: rotate(${Math.random()*4 - 2}deg);"><img src="${photoUrl}" class="photo-annotation-img"><div class="photo-annotation-text">${title}</div></div>`,
+                iconSize: [180, 'auto'], iconAnchor: [90, 80] 
+            });
+            const photoMarker = L.marker(photoLatLng, { draggable: true, icon: photoIcon, zIndexOffset: 1000 }).addTo(map);
+            photoMarker.on('click', function(e) { L.DomEvent.stopPropagation(e); if(isDeleteMode) { const layer = photoLayers.find(l => l.marker === photoMarker); if(layer) { map.removeLayer(layer.target); if(layer.target.domElement) layer.target.domElement.remove(); updateLabels(); calculateRoute(false); } } else { openLightbox(photoUrl, title, desc); } });
+            const line = L.polyline([startLatLng, photoLatLng], { color: '#4b5563', weight: 2, dashArray: '4, 4', opacity: 0.8 }).addTo(map);
+            photoLayers.push({ marker: photoMarker, line: line, target: targetMarker });
+            photoMarker.on('drag', function(e) { line.setLatLngs([targetMarker.getLatLng(), photoMarker.getLatLng()]); });
+        }
+
+        function updatePhotoLine(targetMarker) {
+            const layer = photoLayers.find(l => l.target === targetMarker);
+            if (layer) layer.line.setLatLngs([targetMarker.getLatLng(), layer.marker.getLatLng()]);
+        }
+
+        function showContextMenu(e, marker, domElement) {
+            contextMenuTarget = { marker, domElement }; const menu = document.getElementById('context-menu');
+            const containerPoint = map.latLngToContainerPoint(e.latlng); const mapContainer = document.getElementById('map').getBoundingClientRect();
+            menu.style.left = (mapContainer.left + containerPoint.x) + 'px'; menu.style.top = (mapContainer.top + containerPoint.y) + 'px'; menu.style.display = 'block';
+        }
+        function hideContextMenu() { document.getElementById('context-menu').style.display = 'none'; }
+        function triggerRename() {
+            if (!contextMenuTarget) return;
+            const input = contextMenuTarget.domElement ? contextMenuTarget.domElement.querySelector('.loc-name') : null;
+            const oldName = input ? input.value : "自訂點"; const newName = prompt("修改地點名稱", oldName);
+            if (newName) { if (input) input.value = newName; calculateRoute(false); } hideContextMenu();
+        }
+        function triggerPhotoUpload() { if (contextMenuTarget && contextMenuTarget.domElement) contextMenuTarget.domElement.querySelector('.loc-photo').click(); hideContextMenu(); }
+        function triggerDelete() { if (contextMenuTarget) { if (contextMenuTarget.domElement) { contextMenuTarget.domElement.remove(); updateLabels(); calculateRoute(false); } } hideContextMenu(); }
+
+        function getPosterIllustration(index) {
+            const illustrations = [illuMountain, illuWater, illuBuild, illuPark, illuGeneric];
+            return illustrations[index % illustrations.length];
+        }
+
+        async function generateQPoster() {
+            const container = document.getElementById('q-poster-container');
+            const timelineTarget = document.getElementById('qp-timeline-target');
+            const dateDisplay = document.getElementById('qp-date-display');
+            const headerBlock = document.getElementById('qp-header-block');
+            const titleText = document.getElementById('qp-title-text');
+            const btn = document.getElementById('poster-btn');
+
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin text-lg mb-1"></i> 生成中...';
+            
+            const tripDate = document.getElementById('trip-date').value;
+            const customTitle = document.getElementById('custom-title').value;
+            const totalDist = document.getElementById('distance-val').innerText;
+            
+            dateDisplay.innerText = tripDate ? new Date(tripDate).toLocaleDateString('zh-TW') : new Date().toLocaleDateString('zh-TW');
+            titleText.innerText = customTitle || "我們的旅程";
+            
+            // Inject total distance to header
+            const infoRow = document.querySelector('.qp-info-row');
+            if(infoRow) {
+                // Clear old dist if any
+                const oldDist = infoRow.querySelector('.qp-total-dist');
+                if(oldDist) oldDist.remove();
+                
+                const distSpan = document.createElement('div');
+                distSpan.className = 'qp-total-dist';
+                distSpan.innerText = `總里程: ${totalDist} km`;
+                infoRow.appendChild(distSpan);
+            }
+
+            const startItem = document.querySelector('#start-location-container .location-item');
+            const listItems = Array.from(document.querySelectorAll('#sortable-list .location-item'));
+            const allItems = [startItem, ...listItems].filter(item => item !== null);
+
+            let posterData = [];
+            allItems.forEach((item, index) => {
+                const name = item.querySelector('.loc-name').value.trim();
+                const desc = item.querySelector('.loc-desc').value.trim();
+                const photoInput = item.querySelector('.loc-photo');
+                const photoSrc = photoInput.dataset.base64 || photoInput.dataset.wikiPhoto;
+                
+                let lat = parseFloat(item.dataset.lat);
+                let lon = parseFloat(item.dataset.lng);
+
+                if(name) {
+                    posterData.push({ name, desc, photoSrc, index, lat, lon });
+                }
+            });
+
+            if (posterData.length === 0) {
+                alert("請先加入地點並輸入名稱");
+                btn.innerHTML = '<i class="fas fa-file-pdf text-lg mb-1"></i> 景點介紹 PDF';
+                return;
+            }
+
+            container.classList.add('capture-mode');
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const MAX_HEIGHT = 1550; 
+
+            try {
+                timelineTarget.innerHTML = '';
+                headerBlock.style.display = 'block'; 
+                container.style.paddingTop = '40px';
+
+                let isFirstPage = true;
+
+                for (let i = 0; i < posterData.length; i++) {
+                    const data = posterData[i];
+                    
+                    const illu = getPosterIllustration(data.index);
+                    let photoHtml = '';
+                    if (data.photoSrc) {
+                        photoHtml = `<div class="qp-photo-col"><div class="qp-photo-frame"><img src="${data.photoSrc}" class="qp-photo"></div></div>`;
+                    }
+
+                    const itemHtml = `
+                    <div class="qp-item" id="temp-item-${i}">
+                        <div class="qp-badge">${data.index + 1}</div>
+                        <div class="qp-card">
+                            <div class="qp-illustration">${illu}</div>
+                            <div class="qp-content-wrapper">
+                                <div class="qp-text-col">
+                                    <div class="qp-name">${data.name}</div>
+                                    ${data.desc ? `<div class="qp-desc">${data.desc}</div>` : ''}
+                                </div>
+                                ${photoHtml}
+                            </div>
+                        </div>
+                    </div>`;
+                    
+                    let distanceHtml = '';
+                    if (i < posterData.length - 1) {
+                        const nextData = posterData[i+1];
+                        if (data.lat && data.lon && nextData.lat && nextData.lon) {
+                            const p1 = L.latLng(data.lat, data.lon);
+                            const p2 = L.latLng(nextData.lat, nextData.lon);
+                            const d = (p1.distanceTo(p2) / 1000).toFixed(1);
+                            distanceHtml = `<div class="qp-distance-indicator" id="temp-dist-${i}">⬇ ${d} km</div>`;
+                        }
+                    }
+
+                    timelineTarget.insertAdjacentHTML('beforeend', itemHtml);
+                    if(distanceHtml) timelineTarget.insertAdjacentHTML('beforeend', distanceHtml);
+                    
+                    await new Promise(r => setTimeout(r, 0));
+
+                    if (container.scrollHeight > MAX_HEIGHT) {
+                        const itemToRemove = document.getElementById(`temp-item-${i}`);
+                        const distToRemove = document.getElementById(`temp-dist-${i}`);
+                        itemToRemove.remove();
+                        if(distToRemove) distToRemove.remove();
+                        
+                        if(i > 0) {
+                             const prevDist = document.getElementById(`temp-dist-${i-1}`);
+                             if(prevDist) prevDist.remove();
+                        }
+
+                        i--; 
+
+                        await new Promise(r => setTimeout(r, 500)); 
+                        const canvas = await html2canvas(container, { scale: 2, useCORS: true, logging: false });
+                        const imgData = canvas.toDataURL('image/jpeg', 0.9);
+                        const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+                        if (!isFirstPage) pdf.addPage();
+                        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, imgHeight);
+                        isFirstPage = false;
+
+                        timelineTarget.innerHTML = '';
+                        headerBlock.style.display = 'none'; 
+                        container.style.paddingTop = '40px'; 
+                    }
+                }
+
+                if (timelineTarget.children.length > 0) {
+                    await new Promise(r => setTimeout(r, 500));
+                    const canvas = await html2canvas(container, { scale: 2, useCORS: true, logging: false });
+                    const imgData = canvas.toDataURL('image/jpeg', 0.9);
+                    const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+                    if (!isFirstPage) pdf.addPage();
+                    pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, imgHeight);
+                }
+
+                pdf.save('Travel_Spot_Intro.pdf');
+
+            } catch (error) {
+                console.error('海報生成錯誤:', error);
+                alert("海報生成失敗，請重試");
+            } finally {
+                container.classList.remove('capture-mode');
+                headerBlock.style.display = 'block';
+                btn.innerHTML = '<i class="fas fa-file-pdf text-lg mb-1"></i> 景點介紹PDF';
+            }
+        }
+
+        window.onload = initMap;
+    </script>
+</body>
+</html>
