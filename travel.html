@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>旅遊足跡地圖</title>
+    <title>旅遊足跡地圖 v6.5 (路徑分段著色版)</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Leaflet CSS -->
@@ -37,14 +37,15 @@
         .popup-body { padding: 12px; text-align: center; }
         .popup-title { font-weight: bold; font-size: 1.1em; color: #374151; margin-bottom: 4px; }
 
-        /* Trip Line (Static to prevent flashing) */
+        /* Trip Line (Default style, color will be overridden inline) */
         .trip-line { 
             stroke-dasharray: 10, 10; 
-            opacity: 0.8; 
+            opacity: 0.9; 
             cursor: default; 
+            stroke-linecap: round;
         }
         
-        /* Freehand Line */
+        /* Freehand Line (Initial drawing style) */
         .freehand-line { stroke: #ef4444; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; fill: none; filter: drop-shadow(1px 1px 2px rgba(0,0,0,0.3)); opacity: 0.8; cursor: pointer; }
         .freehand-line:hover { stroke: #dc2626; stroke-width: 8; }
 
@@ -60,7 +61,9 @@
         /* Segment Distance Annotation */
         .dist-annotation-container {
             background: rgba(255, 255, 255, 0.95); padding: 4px 10px; border-radius: 20px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3); border: 2px solid #4b5563;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3); 
+            /* Border color will be set dynamically via JS */
+            border: 3px solid #4b5563; 
             transition: transform 0.2s; cursor: grab;
             display: flex; align-items: center; justify-content: center;
             width: auto; white-space: nowrap;
@@ -157,7 +160,7 @@
         }
         .lightbox-close:hover { background: rgba(239, 68, 68, 0.8); }
 
-        /* Map Info Overlay (Permanent) */
+        /* Map Info Overlay */
         #map-info-overlay {
             position: absolute; bottom: 30px; right: 20px; z-index: 1000;
             background: rgba(255, 255, 255, 0.95); padding: 15px 20px;
@@ -197,7 +200,6 @@
             opacity: 1;
         }
 
-        /* Header Redesign */
         .qp-header { text-align: center; margin-bottom: 30px; position: relative; }
         .qp-title { 
             font-size: 72px; color: #b45309; font-weight: 900; 
@@ -264,21 +266,21 @@
         .qp-name { font-size: 30px; font-weight: 900; color: #1f2937; margin-bottom: 8px; border-bottom: 3px solid #fcd34d; display: inline-block; padding-bottom: 2px; line-height: 1.2;}
         .qp-desc { font-size: 15px; color: #374151; line-height: 1.5; font-weight: bold; white-space: pre-wrap; text-align: justify; margin: 0; }
         
-        /* FIX: PDF Photo Frame Sizing - White Border & No Overflow */
+        /* Photo Frame Sizing */
         .qp-photo-frame { 
             background: white; 
-            padding: 10px; /* White Border */
+            padding: 10px; 
             border: 1px solid #d1d5db; 
             display: block; 
             box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
             transform: rotate(2deg); 
-            box-sizing: border-box; /* Key fix */
+            box-sizing: border-box; 
             width: 100%;
             max-width: 220px; 
             overflow: hidden;
         }
         .qp-photo { 
-            width: 100% !important; /* Force fit width of frame */
+            width: 100% !important; 
             height: auto; 
             max-height: 160px; 
             object-fit: cover; 
@@ -334,7 +336,7 @@
     <div id="sidebar" class="w-full md:w-96 bg-white shadow-2xl flex flex-col h-full border-r border-gray-200 z-10 overflow-hidden">
         <div class="p-5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md flex-shrink-0">
             <h1 class="text-xl font-bold"><i class="fas fa-map-marked-alt mr-2"></i>旅遊足跡生成器</h1>
-            <p class="text-xs opacity-90 mt-1">v6.3</p>
+            <p class="text-xs opacity-90 mt-1">v6.5 | 路徑著色版</p>
         </div>
 
         <div class="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar" id="inputs-container">
@@ -389,7 +391,7 @@
             </div>
 
             <button onclick="generateQPoster()" id="poster-btn" class="w-full bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold py-2 px-1 rounded-lg shadow transition flex flex-col items-center justify-center text-xs active:bg-yellow-600 h-16 border-2 border-black">
-                <i class="fas fa-file-pdf text-lg mb-1"></i> 景點介紹PDF
+                <i class="fas fa-file-pdf text-lg mb-1"></i> 景點介紹 PDF
             </button>
         </div>
     </div>
@@ -429,6 +431,13 @@
         let isDrawing = false; let currentFreehandLine = null;
         let isRightDragging = false; let lastPoint = null;
         let lastActiveRow = null;
+        // Fix: Store road distances for PDF
+        let routeLegDistances = []; 
+        
+        // --- NEW: Route Coloring ---
+        // Distinct colors for each segment: Red, Blue, Green, Orange, Purple, Pink, Teal, Indigo
+        const routeColors = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#6366f1'];
+        let routeLayerGroup = null; // Replaces single routePolyline
 
         const hardcodedLocations = {
             "李騰芳古宅": { lat: 24.887848, lon: 121.286469 },
@@ -442,6 +451,10 @@
                 crossOrigin: 'anonymous' 
             }).addTo(map);
             L.control.zoom({ position: 'topleft' }).addTo(map);
+            
+            // Initialize LayerGroup for colorful route
+            routeLayerGroup = L.layerGroup().addTo(map);
+
             document.getElementById('start-location-container').innerHTML = createInputRowHTML('起點', 'green', '', false);
             addInputRow('終點', 'red');
             
@@ -587,17 +600,19 @@
                 }
 
                 map.removeLayer(currentFreehandLine);
+                
+                // Modify the master path array
                 routePathPoints.splice(lower, upper - lower, ...drawnPoints);
                 
-                if(routePolyline) map.removeLayer(routePolyline);
-                routePolyline = L.polyline(routePathPoints, { color: '#6366f1', weight: 6, className: 'trip-line' }).addTo(map);
-                
+                // Re-render essentially just updates colors and distance
                 let totalDist = 0;
                 for(let i=0; i<routePathPoints.length-1; i++) totalDist += map.distance(routePathPoints[i], routePathPoints[i+1]);
                 const km = (totalDist/1000).toFixed(1);
                 document.getElementById('distance-val').innerText = km;
                 document.getElementById('overlay-dist').innerText = km;
                 
+                // NEW: Render colorful segments instead of single polyline
+                renderColoredRoute();
                 recalculateSegmentDistances(routePathPoints);
 
             } else {
@@ -605,37 +620,98 @@
             }
         }
 
+        // --- NEW: Render Segments with Colors ---
+        function renderColoredRoute() {
+            routeLayerGroup.clearLayers();
+            
+            if (markers.length < 2 || routePathPoints.length === 0) return;
+
+            // We need to split routePathPoints based on markers
+            // Find indices of markers in the path
+            let splitIndices = [0];
+            
+            // For each marker (except start), find nearest point in routePathPoints
+            for (let i = 1; i < markers.length; i++) {
+                let markerLatLng = markers[i].getLatLng();
+                let closestIdx = -1;
+                let minDst = Infinity;
+                
+                // Optimization: Start searching from previous split index
+                // But hand drawing might mess up order, so search reasonably locally or full if needed
+                // Full search is safer for robustness
+                for (let j = 0; j < routePathPoints.length; j++) {
+                    let d = map.distance(markerLatLng, routePathPoints[j]);
+                    if (d < minDst) {
+                        minDst = d;
+                        closestIdx = j;
+                    }
+                }
+                splitIndices.push(closestIdx);
+            }
+            // Ensure last index matches path end to close the loop visually
+            splitIndices[splitIndices.length - 1] = routePathPoints.length - 1;
+
+            // Draw Segments
+            for (let i = 0; i < splitIndices.length - 1; i++) {
+                let startIdx = splitIndices[i];
+                let endIdx = splitIndices[i+1];
+                
+                // Handle case where indices are out of order (e.g. loops or errors), just swap
+                if (startIdx > endIdx) {
+                    let temp = startIdx; startIdx = endIdx; endIdx = temp;
+                }
+
+                const segmentPoints = routePathPoints.slice(startIdx, endIdx + 1);
+                const color = routeColors[i % routeColors.length];
+                
+                L.polyline(segmentPoints, { 
+                    color: color, 
+                    weight: 6, 
+                    opacity: 0.9, 
+                    className: 'trip-line' 
+                }).addTo(routeLayerGroup);
+            }
+        }
+
         function recalculateSegmentDistances(points) {
              distanceLayers.forEach(l => { if(l.marker) map.removeLayer(l.marker); if(l.line) map.removeLayer(l.line); });
              distanceLayers = [];
              
-             let markerIndices = [];
-             markers.forEach(m => {
-                 let minDist = Infinity;
-                 let bestIdx = -1;
-                 const mPos = m.getLatLng();
-                 for(let i=0; i<points.length; i++) {
-                     const d = map.distance(mPos, points[i]);
-                     if(d < minDist) { minDist = d; bestIdx = i; }
-                 }
-                 markerIndices.push(bestIdx);
-             });
+             // Same logic as renderColoredRoute to find split points
+             let splitIndices = [0];
+             for (let i = 1; i < markers.length; i++) {
+                let markerLatLng = markers[i].getLatLng();
+                let closestIdx = -1;
+                let minDst = Infinity;
+                for (let j = 0; j < points.length; j++) {
+                    let d = map.distance(markerLatLng, points[j]);
+                    if (d < minDst) { minDst = d; closestIdx = j; }
+                }
+                splitIndices.push(closestIdx);
+             }
+             splitIndices[splitIndices.length - 1] = points.length - 1;
              
-             for(let i=0; i<markerIndices.length-1; i++) {
-                 const startIdx = markerIndices[i];
-                 const endIdx = markerIndices[i+1];
-                 if (startIdx === -1 || endIdx === -1) continue;
+             for(let i=0; i<splitIndices.length-1; i++) {
+                 const startIdx = splitIndices[i];
+                 const endIdx = splitIndices[i+1];
                  
                  let segmentDist = 0;
-                 const step = startIdx < endIdx ? 1 : -1;
-                 for(let j=startIdx; j !== endIdx; j += step) {
-                     segmentDist += map.distance(points[j], points[j+step]);
+                 // Calculate distance along path for this segment
+                 // handle safe indexing
+                 let safeStart = Math.min(startIdx, endIdx);
+                 let safeEnd = Math.max(startIdx, endIdx);
+                 
+                 for(let j=safeStart; j < safeEnd; j++) {
+                     segmentDist += map.distance(points[j], points[j+1]);
                  }
                  const distKm = (segmentDist / 1000).toFixed(1) + " km";
                  
-                 const midIdx = Math.floor((startIdx + endIdx) / 2);
+                 // Find mid point for label
+                 const midIdx = Math.floor((safeStart + safeEnd) / 2);
                  const midPt = points[midIdx];
-                 createDistanceCallout(midPt, distKm);
+                 
+                 // Pass color index
+                 createDistanceCallout(midPt, distKm, i);
              }
         }
 
@@ -1004,11 +1080,13 @@
             loading.classList.remove('hidden'); loading.classList.add('flex');
             
             try {
+                // FIX: Check for empty state to prevent "Route calculation error" on startup
                 if (!isQuickUpdate) {
                     const startItem = document.querySelector('#start-location-container .location-item');
                     const listItems = Array.from(document.querySelectorAll('#sortable-list .location-item'));
                     const items = [startItem, ...listItems].filter(item => item !== null);
                     
+                    // Pre-check for validity before doing heavy lifting
                     const hasNames = items.some(item => item.querySelector('.loc-name').value.trim() !== "");
                     if (!hasNames) {
                         loading.classList.add('hidden'); loading.classList.remove('flex');
@@ -1059,19 +1137,27 @@
                 if (osrmData) {
                         routePathPoints = osrmData.geometry.coordinates.map(c => [c[1], c[0]]);
                         rawRouteData = osrmData;
+                        
+                        // FIX: Store correct road distances for PDF
+                        routeLegDistances = osrmData.legs.map(leg => (leg.distance / 1000).toFixed(1));
                 } else {
                     routePathPoints = generateLinearPath(waypoints);
+                    
+                    // FIX: Store linear distances as fallback
+                    routeLegDistances = [];
+                    for(let k=0; k<markers.length-1; k++) {
+                        const d = markers[k].getLatLng().distanceTo(markers[k+1].getLatLng());
+                        routeLegDistances.push((d/1000).toFixed(1));
+                    }
                 }
 
-                if (routePolyline) map.removeLayer(routePolyline);
-                routePolyline = L.polyline(routePathPoints, { color: '#6366f1', weight: 6, className: 'trip-line' }).addTo(map);
-                routePolyline.on('mouseover', function() { this.setStyle({ color: '#4f46e5', weight: 8 }); });
-                routePolyline.on('mouseout', function() { this.setStyle({ color: '#6366f1', weight: 6 }); });
+                // FIX: Use Colored Segments
+                renderColoredRoute();
                 
                 if (rawRouteData && rawRouteData.legs) addDistanceCallouts(rawRouteData.legs);
                 
                 setTimeout(() => { 
-                    let bounds = routePolyline.getBounds(); 
+                    let bounds = L.latLngBounds(routePathPoints);
                     markers.forEach(m => bounds.extend(m.getLatLng()));
                     if (bounds.isValid()) map.fitBounds(bounds.pad(0.15)); 
                 }, 200);
@@ -1106,6 +1192,50 @@
             return null;
         }
 
+        // --- NEW: Render Segments with Colors ---
+        function renderColoredRoute() {
+            routeLayerGroup.clearLayers();
+            
+            if (markers.length < 2 || routePathPoints.length === 0) return;
+
+            // Split path based on markers
+            let splitIndices = [0];
+            
+            for (let i = 1; i < markers.length; i++) {
+                let markerLatLng = markers[i].getLatLng();
+                let closestIdx = -1;
+                let minDst = Infinity;
+                
+                for (let j = 0; j < routePathPoints.length; j++) {
+                    let d = map.distance(markerLatLng, routePathPoints[j]);
+                    if (d < minDst) {
+                        minDst = d;
+                        closestIdx = j;
+                    }
+                }
+                splitIndices.push(closestIdx);
+            }
+            splitIndices[splitIndices.length - 1] = routePathPoints.length - 1;
+
+            // Draw Segments
+            for (let i = 0; i < splitIndices.length - 1; i++) {
+                let startIdx = splitIndices[i];
+                let endIdx = splitIndices[i+1];
+                
+                if (startIdx > endIdx) { let temp = startIdx; startIdx = endIdx; endIdx = temp; }
+
+                const segmentPoints = routePathPoints.slice(startIdx, endIdx + 1);
+                const color = routeColors[i % routeColors.length];
+                
+                L.polyline(segmentPoints, { 
+                    color: color, 
+                    weight: 6, 
+                    opacity: 0.9, 
+                    className: 'trip-line' 
+                }).addTo(routeLayerGroup);
+            }
+        }
+
         function addDistanceCallouts(legs) {
              if (legs.length !== markers.length - 1) return;
              legs.forEach((leg, i) => {
@@ -1113,13 +1243,18 @@
                  const distKm = (leg.distance / 1000).toFixed(1) + " km";
                  const p1 = startM.getLatLng(); const p2 = endM.getLatLng();
                  const midLat = (p1.lat + p2.lat) / 2; const midLng = (p1.lng + p2.lng) / 2;
-                 createDistanceCallout([midLat, midLng], distKm);
+                 createDistanceCallout([midLat, midLng], distKm, i); // Pass color index
              });
         }
         
-        function createDistanceCallout(anchorLatLng, text) {
+        function createDistanceCallout(anchorLatLng, text, colorIndex = 0) {
              const labelLatLng = [anchorLatLng[0] + 0.005, anchorLatLng[1] + 0.005];
-             const icon = L.divIcon({ className: '', html: `<div class="dist-annotation-container"><div class="dist-annotation-text">${text}</div></div>`, iconSize: [60, 24], iconAnchor: [30, 12] });
+             const color = routeColors[colorIndex % routeColors.length];
+             
+             // Dynamic border color
+             const iconHtml = `<div class="dist-annotation-container" style="border-color: ${color}"><div class="dist-annotation-text">${text}</div></div>`;
+             
+             const icon = L.divIcon({ className: '', html: iconHtml, iconSize: [60, 24], iconAnchor: [30, 12] });
              const marker = L.marker(labelLatLng, { draggable: true, icon: icon, zIndexOffset: 2000 }).addTo(map);
              const line = L.polyline([anchorLatLng, labelLatLng], { color: '#4b5563', weight: 2, dashArray: '2, 4', opacity: 0.8 }).addTo(map);
              marker.on('drag', function(e) { line.setLatLngs([anchorLatLng, marker.getLatLng()]); });
@@ -1220,7 +1355,6 @@
             // Inject total distance to header
             const infoRow = document.querySelector('.qp-info-row');
             if(infoRow) {
-                // Clear old dist if any
                 const oldDist = infoRow.querySelector('.qp-total-dist');
                 if(oldDist) oldDist.remove();
                 
@@ -1241,11 +1375,9 @@
                 const photoInput = item.querySelector('.loc-photo');
                 const photoSrc = photoInput.dataset.base64 || photoInput.dataset.wikiPhoto;
                 
-                let lat = parseFloat(item.dataset.lat);
-                let lon = parseFloat(item.dataset.lng);
-
+                // Original Index is needed to map to routeLegDistances
                 if(name) {
-                    posterData.push({ name, desc, photoSrc, index, lat, lon });
+                    posterData.push({ name, desc, photoSrc, index });
                 }
             });
 
@@ -1259,7 +1391,7 @@
             const { jsPDF } = window.jspdf;
             const pdf = new jsPDF('p', 'mm', 'a4');
             const pdfWidth = pdf.internal.pageSize.getWidth();
-            const MAX_HEIGHT = 1550; 
+            const MAX_HEIGHT = 1680; // Adjusted for better A4 fit
 
             try {
                 timelineTarget.innerHTML = '';
@@ -1294,13 +1426,11 @@
                     
                     let distanceHtml = '';
                     if (i < posterData.length - 1) {
-                        const nextData = posterData[i+1];
-                        if (data.lat && data.lon && nextData.lat && nextData.lon) {
-                            const p1 = L.latLng(data.lat, data.lon);
-                            const p2 = L.latLng(nextData.lat, nextData.lon);
-                            const d = (p1.distanceTo(p2) / 1000).toFixed(1);
-                            distanceHtml = `<div class="qp-distance-indicator" id="temp-dist-${i}">⬇ ${d} km</div>`;
-                        }
+                        // FIX: Use routeLegDistances which holds correct OSRM data
+                        // The distance between item 'i' and 'i+1' is stored at index 'data.index' 
+                        // (since data.index is the original marker index)
+                        const d = routeLegDistances[data.index] || "0.0";
+                        distanceHtml = `<div class="qp-distance-indicator" id="temp-dist-${i}">⬇ ${d} km</div>`;
                     }
 
                     timelineTarget.insertAdjacentHTML('beforeend', itemHtml);
@@ -1314,11 +1444,8 @@
                         itemToRemove.remove();
                         if(distToRemove) distToRemove.remove();
                         
-                        if(i > 0) {
-                             const prevDist = document.getElementById(`temp-dist-${i-1}`);
-                             if(prevDist) prevDist.remove();
-                        }
-
+                        // Keep previous distance indicator if present (cross-page distance)
+                        
                         i--; 
 
                         await new Promise(r => setTimeout(r, 500)); 
@@ -1352,7 +1479,7 @@
             } finally {
                 container.classList.remove('capture-mode');
                 headerBlock.style.display = 'block';
-                btn.innerHTML = '<i class="fas fa-file-pdf text-lg mb-1"></i> 景點介紹PDF';
+                btn.innerHTML = '<i class="fas fa-file-pdf text-lg mb-1"></i> 景點介紹 PDF';
             }
         }
 
