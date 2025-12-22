@@ -277,12 +277,13 @@
         let beatCount = 0;
         let beatsPerImage = 4;
         let bpm = 100;
+        let initialBpm = 100; // 新增：用來記錄一開始設定的速度
         let isAcceleration = false;
         let isCountingDown = false;
 
         let audioCtx = null;
-        let noiseBuffer = null;
         let selectedVoice = null;
+        let noiseBuffer = null;
 
         const loadStatus = document.getElementById('load-status');
         const fileInput = document.getElementById('file-input');
@@ -301,32 +302,24 @@
             if (fileInput.files.length) handleFiles(fileInput.files);
         });
 
-        // --- 載入語音清單，挑選男聲 ---
         function loadVoices() {
             const voices = window.speechSynthesis.getVoices();
-            // 嘗試尋找名字包含 David, Daniel, Google US English 的聲音 (通常較中性或男性)
             selectedVoice = voices.find(v => v.name.includes('David') || v.name.includes('Daniel') || v.name.includes('Google US English'));
-            // 如果找不到，就找任意英文發音
             if (!selectedVoice) {
                 selectedVoice = voices.find(v => v.lang.startsWith('en'));
             }
         }
-        // Chrome 需要觸發這個事件才能抓到語音列表
         if (window.speechSynthesis.onvoiceschanged !== undefined) {
             window.speechSynthesis.onvoiceschanged = loadVoices;
         }
 
-        // --- 音效處理核心 ---
         function initAudio() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             }
-            // 關鍵：如果 Context 被暫停了（因為沒有互動），這裡強制恢復
             if (audioCtx.state === 'suspended') {
                 audioCtx.resume();
             }
-            
-            // 預先建立白噪音 Buffer
             if (!noiseBuffer) {
                 const bufferSize = audioCtx.sampleRate * 2; 
                 noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
@@ -337,109 +330,107 @@
             }
         }
 
-        function playKick() {
+        function playWhistle() {
             if (!soundOn || !audioCtx) return;
-            // 再次確保 context 是運作的
             if (audioCtx.state === 'suspended') audioCtx.resume();
-            
+
             const t = audioCtx.currentTime;
-            const osc = audioCtx.createOscillator();
+
+            const createWhistlePart = (freq, start, duration) => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                const lfo = audioCtx.createOscillator();
+                const lfoGain = audioCtx.createGain();
+
+                osc.frequency.value = freq; 
+                osc.type = 'sine';
+
+                lfo.frequency.value = 40; 
+                lfo.type = 'sine';
+                lfoGain.gain.value = 0.3;
+                
+                lfo.connect(lfoGain);
+                lfoGain.connect(gain.gain);
+                
+                gain.gain.setValueAtTime(0, start);
+                gain.gain.linearRampToValueAtTime(0.8, start + 0.02);
+                gain.gain.linearRampToValueAtTime(0, start + duration);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                
+                osc.start(start);
+                lfo.start(start);
+                osc.stop(start + duration);
+                lfo.stop(start + duration);
+            };
+
+            createWhistlePart(2200, t, 0.15); 
+            createWhistlePart(2300, t, 0.15);
+        }
+
+        function playTone(time, freq, decay, type, vol) {
+            if (!soundOn || !audioCtx) return;
+            
             const gain = audioCtx.createGain();
             
-            osc.frequency.setValueAtTime(150, t);
-            osc.frequency.exponentialRampToValueAtTime(0.01, t + 0.5);
-            
-            gain.gain.setValueAtTime(1, t);
-            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
-            
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            
-            osc.start(t);
-            osc.stop(t + 0.5);
+            if (type === 'noise') {
+                const src = audioCtx.createBufferSource();
+                src.buffer = noiseBuffer;
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'highpass';
+                filter.frequency.value = 800;
+                
+                src.connect(filter);
+                filter.connect(gain);
+                gain.gain.setValueAtTime(vol, time);
+                gain.gain.exponentialRampToValueAtTime(0.01, time + decay);
+                
+                gain.connect(audioCtx.destination);
+                src.start(time);
+                src.stop(time + decay);
+            } else {
+                const osc = audioCtx.createOscillator();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, time);
+                osc.frequency.exponentialRampToValueAtTime(10, time + decay);
+                
+                osc.connect(gain);
+                gain.gain.setValueAtTime(vol, time);
+                gain.gain.exponentialRampToValueAtTime(0.01, time + decay);
+                
+                gain.connect(audioCtx.destination);
+                osc.start(time);
+                osc.stop(time + decay);
+            }
         }
 
-        function playSnare() {
+        // 背景節奏：音量更小
+        function scheduleBackgroundRhythm(beatDuration) {
             if (!soundOn || !audioCtx) return;
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-
             const t = audioCtx.currentTime;
             
-            const noiseSrc = audioCtx.createBufferSource();
-            noiseSrc.buffer = noiseBuffer;
-            const noiseFilter = audioCtx.createBiquadFilter();
-            noiseFilter.type = 'highpass';
-            noiseFilter.frequency.value = 1000;
-            const noiseGain = audioCtx.createGain();
-            noiseGain.gain.setValueAtTime(0.8, t);
-            noiseGain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
-            
-            noiseSrc.connect(noiseFilter);
-            noiseFilter.connect(noiseGain);
-            noiseGain.connect(audioCtx.destination);
-            
-            const osc = audioCtx.createOscillator();
-            osc.type = 'triangle';
-            const oscGain = audioCtx.createGain();
-            osc.frequency.setValueAtTime(250, t);
-            oscGain.gain.setValueAtTime(0.5, t);
-            oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
-            
-            osc.connect(oscGain);
-            oscGain.connect(audioCtx.destination);
-            
-            noiseSrc.start(t);
-            osc.start(t);
-            osc.stop(t + 0.2);
-            noiseSrc.stop(t + 0.2);
+            // Boom (0.15 音量)
+            playTone(t, 100, 0.25, 'sine', 0.15); 
+
+            // Tick (0.05 音量) - 幾乎只是空氣感
+            playTone(t + (beatDuration / 1000 * 0.333), 0, 0.1, 'noise', 0.05); 
+            playTone(t + (beatDuration / 1000 * 0.666), 0, 0.1, 'noise', 0.05); 
         }
 
-        function playCrash() {
-            if (!soundOn || !audioCtx) return;
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-
-            const t = audioCtx.currentTime;
-            
-            const noiseSrc = audioCtx.createBufferSource();
-            noiseSrc.buffer = noiseBuffer;
-            const noiseFilter = audioCtx.createBiquadFilter();
-            noiseFilter.type = 'highpass';
-            noiseFilter.frequency.value = 2000;
-            const noiseGain = audioCtx.createGain();
-            
-            noiseGain.gain.setValueAtTime(0.8, t);
-            noiseGain.gain.exponentialRampToValueAtTime(0.01, t + 1.5);
-            
-            noiseSrc.connect(noiseFilter);
-            noiseFilter.connect(noiseGain);
-            noiseGain.connect(audioCtx.destination);
-            
-            noiseSrc.start(t);
-            noiseSrc.stop(t + 1.5);
-            
-            playKick();
-        }
-
-        // 說話函式：針對男聲與氣勢做調整
-        function speak(text, type) {
+        function speak(text) {
             if (!soundOn) return;
-            
-            if (type === 'kick') playKick();
-            if (type === 'crash') playCrash();
+            playTone(audioCtx.currentTime, 80, 0.2, 'sine', 0.1); 
 
             if ('speechSynthesis' in window) {
                 const utterance = new SpeechSynthesisUtterance(text);
-                
-                // 設定語音
-                if (!selectedVoice) loadVoices(); // 如果還沒載入，再試一次
+                if (!selectedVoice) loadVoices();
                 if (selectedVoice) utterance.voice = selectedVoice;
                 
                 utterance.lang = 'en-US';
-                
-                // --- 調整參數以創造有氣勢的男聲 ---
-                utterance.rate = 1.3;  // 稍微快一點
-                utterance.pitch = 0.8; // 降低音調 (0.1 最低, 2 最高)。0.8 會讓聲音變深沉厚重
-                utterance.volume = 1;
+                utterance.rate = 1.6;  
+                utterance.pitch = 0.8; 
+                utterance.volume = 1; 
 
                 speechSynthesis.speak(utterance);
             }
@@ -452,30 +443,29 @@
                     return;
                 }
                 
-                // 每次倒數前，先強制停止之前的語音，避免卡住
                 speechSynthesis.cancel();
-                
-                const delay = 600;
+                const delay = 500; 
 
                 countdownOverlay.textContent = "One";
-                speak("One", "kick");
+                speak("One");
 
                 setTimeout(() => {
                     if(!isCountingDown) return;
                     countdownOverlay.textContent = "Two";
-                    speak("Two", "kick");
+                    speak("Two");
                 }, delay);
 
                 setTimeout(() => {
                     if(!isCountingDown) return;
                     countdownOverlay.textContent = "Three";
-                    speak("Three", "kick");
+                    speak("Three");
                 }, delay * 2);
 
                 setTimeout(() => {
                     if(!isCountingDown) return;
                     countdownOverlay.textContent = "Go!";
-                    speak("Go", "crash");
+                    playWhistle();
+                    speak("Go");
                 }, delay * 3);
 
                 setTimeout(() => {
@@ -578,6 +568,7 @@
             if (el) el.classList.add('current');
         }
 
+        // 核心迴圈修正
         function gameLoop() {
             if (!isRunning) return;
 
@@ -585,10 +576,44 @@
             indicator.classList.add('beat-active');
             setTimeout(() => indicator.classList.remove('beat-active'), 100);
             
+            // --- 加速邏輯修正區 ---
+            // 這裡不再依賴會變動的 'bpm'，而是永遠依賴 'initialBpm'
+            // 這樣可以保證同一頁內速度絕對恆定
+            
+            let currentDelay; // 每一拍的間隔時間 (ms)
+
+            if (isAcceleration) {
+                let level = Math.max(0, pageCount - 1);
+                let timeReduction = level * 50; // 每頁減少 50ms
+
+                // 計算基礎：每一張圖片(含所有節拍)的總停留時間，基於初始 BPM
+                let baseStayTime = (60000 / initialBpm) * beatsPerImage;
+                
+                // 新的總停留時間
+                let newStayTime = baseStayTime - timeReduction;
+                
+                // 安全限制
+                if (newStayTime < 200) newStayTime = 200;
+
+                // 反推回每一拍的時間
+                currentDelay = newStayTime / beatsPerImage;
+            } else {
+                // 如果沒開加速，就固定用初始速度
+                currentDelay = 60000 / initialBpm;
+            }
+
+            // 更新全域 bpm，這只會影響 scheduleBackgroundRhythm 裡面的時間計算，
+            // 不會再影響下一次 gameLoop 的 currentDelay 計算
+            bpm = 60000 / currentDelay;
+
+            // 播放背景韻律 (使用計算出的當前每一拍長度)
+            scheduleBackgroundRhythm(currentDelay);
+
             beatCount++;
             
+            // 綠格移動時播放哨子聲
             if (beatCount % beatsPerImage === 0) {
-                playSnare(); 
+                playWhistle(); 
                 
                 currentIndex++;
                 if (currentIndex >= 8) {
@@ -599,25 +624,10 @@
                 }
             }
 
-            let nextDelay = 60000 / bpm;
-
-            if (isAcceleration) {
-                let level = pageCount - 1; 
-                if (level < 0) level = 0;
-                let timeReduction = level * 100;
-
-                let baseStayTime = (60000 / bpm) * beatsPerImage;
-                let newStayTime = baseStayTime - timeReduction;
-                if (newStayTime < 200) newStayTime = 200;
-
-                nextDelay = newStayTime / beatsPerImage;
-            }
-
-            timerId = setTimeout(gameLoop, nextDelay);
+            timerId = setTimeout(gameLoop, currentDelay);
         }
 
         async function toggleGame() {
-            // 每次點擊都強制嘗試啟動/恢復 AudioContext
             initAudio();
 
             if (contentList.length === 0) { alert('請先上傳圖片並儲存載入遊戲！'); return; }
@@ -640,7 +650,10 @@
                 document.getElementById('start-stop-btn').textContent = '停止遊戲';
                 document.getElementById('start-stop-btn').style.backgroundColor = '#ff6b9d';
                 
-                bpm = parseInt(document.getElementById('bpm').value) || 100;
+                // 鎖定初始設定
+                initialBpm = parseInt(document.getElementById('bpm').value) || 100;
+                bpm = initialBpm;
+                
                 beatsPerImage = parseInt(document.getElementById('beats-per-image').value) || 4;
                 isAcceleration = document.getElementById('acceleration-mode').checked;
 
@@ -662,7 +675,8 @@
                 countdownOverlay.style.display = 'none';
                 isRunning = true;
                 
-                let initialDelay = 60000 / bpm;
+                // 開始第一拍
+                let initialDelay = 60000 / initialBpm;
                 timerId = setTimeout(gameLoop, initialDelay);
             }
         }
