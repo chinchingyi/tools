@@ -45,14 +45,23 @@
             font-size: 18px;
             color: #555;
             white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
         }
-        #top-controls input {
+        #top-controls input[type="number"] {
             width: 80px;
             padding: 8px;
             font-size: 16px;
             text-align: center;
             border: 1px solid #ccc;
             border-radius: 8px;
+        }
+        #top-controls input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
         }
         #upload-btn, #top-controls button {
             padding: 14px 32px;
@@ -106,7 +115,6 @@
         .image-item .delete-btn:hover {
             background: #ff1744;
         }
-        /* 一開始隱藏遊戲區 */
         #student-game {
             flex: 1;
             width: 90%;
@@ -119,7 +127,7 @@
             display: flex;
             flex-direction: column;
             position: relative;
-            display: none; /* 關鍵：預設隱藏 */
+            display: none;
         }
         #student-game h2 {
             text-align: center;
@@ -167,12 +175,13 @@
         }
         #beat-indicator {
             font-size: 60px;
+            transition: transform 0.05s ease-out;
         }
         .beat-active {
             transform: scale(1.7);
             filter: brightness(2);
         }
-        #start-stop-btn, #music-toggle {
+        #start-stop-btn, #sound-toggle {
             padding: 16px 40px;
             font-size: 24px;
             border-radius: 20px;
@@ -181,10 +190,10 @@
         #start-stop-btn {
             background: #51ff8a;
         }
-        #music-toggle {
+        #sound-toggle {
             background: #95a5a6;
         }
-        #music-toggle.active {
+        #sound-toggle.active {
             background: #51ff8a;
         }
         #load-status {
@@ -206,6 +215,19 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.2);
             z-index: 10;
         }
+        #countdown-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            font-size: 80px;
+            color: #ff375f;
+            font-weight: bold;
+            z-index: 20;
+            border-radius: 20px;
+        }
     </style>
 </head>
 <body>
@@ -221,50 +243,246 @@
             <input type="number" id="bpm" value="100" min="40" max="200">
             <label>每張停留節拍數：</label>
             <input type="number" id="beats-per-image" value="4" min="1" max="10">
+            
+            <label style="margin-left: 15px; color: #ff375f; font-weight: bold;">
+                <input type="checkbox" id="acceleration-mode">
+                加速模式
+            </label>
         </div>
         <div id="load-status"></div>
         <div id="images-preview"></div>
     </div>
     <div id="student-game">
+        <div id="countdown-overlay">Ready...</div>
         <h2>Say the word on beat!</h2>
         <div id="grid"></div>
         <div id="controls">
             <div id="beat-indicator">🔴</div>
             <button id="start-stop-btn" onclick="toggleGame()">開始遊戲</button>
-            <button id="music-toggle" onclick="toggleMusic()">關音樂</button>
+            <button id="sound-toggle" onclick="toggleSound()">關音效</button>
         </div>
         <div id="page-counter">Page: 0</div>
     </div>
     <input type="file" id="file-input" multiple accept="image/*" style="display:none;">
-    <audio id="bgm" loop preload="auto">
-        <source src="music.mp3" type="audio/mpeg">
-    </audio>
+
     <script>
         let contentList = [];
         let displayList = [];
         let currentIndex = 0;
-        let intervalId = null;
+        let timerId = null;
         let isRunning = false;
-        let musicOn = true;
+        let soundOn = true;
         let pageCount = 0;
+        
+        let beatCount = 0;
+        let beatsPerImage = 4;
+        let bpm = 100;
+        let isAcceleration = false;
+        let isCountingDown = false;
 
-        const bgm = document.getElementById('bgm');
+        let audioCtx = null;
+        let noiseBuffer = null;
+        let selectedVoice = null;
+
         const loadStatus = document.getElementById('load-status');
         const fileInput = document.getElementById('file-input');
         const preview = document.getElementById('images-preview');
         const uploadBtn = document.getElementById('upload-btn');
         const pageCounter = document.getElementById('page-counter');
-        const musicBtn = document.getElementById('music-toggle');
-        const studentGame = document.getElementById('student-game'); // 新增：遊戲區元素
+        const soundBtn = document.getElementById('sound-toggle');
+        const studentGame = document.getElementById('student-game');
+        const countdownOverlay = document.getElementById('countdown-overlay');
 
-        // 初始化音樂按鈕
-        musicBtn.textContent = '關音樂';
-        musicBtn.classList.add('active');
+        soundBtn.textContent = '關音效';
+        soundBtn.classList.add('active');
 
         uploadBtn.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', () => {
             if (fileInput.files.length) handleFiles(fileInput.files);
         });
+
+        // --- 載入語音清單，挑選男聲 ---
+        function loadVoices() {
+            const voices = window.speechSynthesis.getVoices();
+            // 嘗試尋找名字包含 David, Daniel, Google US English 的聲音 (通常較中性或男性)
+            selectedVoice = voices.find(v => v.name.includes('David') || v.name.includes('Daniel') || v.name.includes('Google US English'));
+            // 如果找不到，就找任意英文發音
+            if (!selectedVoice) {
+                selectedVoice = voices.find(v => v.lang.startsWith('en'));
+            }
+        }
+        // Chrome 需要觸發這個事件才能抓到語音列表
+        if (window.speechSynthesis.onvoiceschanged !== undefined) {
+            window.speechSynthesis.onvoiceschanged = loadVoices;
+        }
+
+        // --- 音效處理核心 ---
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            // 關鍵：如果 Context 被暫停了（因為沒有互動），這裡強制恢復
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            
+            // 預先建立白噪音 Buffer
+            if (!noiseBuffer) {
+                const bufferSize = audioCtx.sampleRate * 2; 
+                noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                const data = noiseBuffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+            }
+        }
+
+        function playKick() {
+            if (!soundOn || !audioCtx) return;
+            // 再次確保 context 是運作的
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            const t = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.frequency.setValueAtTime(150, t);
+            osc.frequency.exponentialRampToValueAtTime(0.01, t + 0.5);
+            
+            gain.gain.setValueAtTime(1, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.start(t);
+            osc.stop(t + 0.5);
+        }
+
+        function playSnare() {
+            if (!soundOn || !audioCtx) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            const t = audioCtx.currentTime;
+            
+            const noiseSrc = audioCtx.createBufferSource();
+            noiseSrc.buffer = noiseBuffer;
+            const noiseFilter = audioCtx.createBiquadFilter();
+            noiseFilter.type = 'highpass';
+            noiseFilter.frequency.value = 1000;
+            const noiseGain = audioCtx.createGain();
+            noiseGain.gain.setValueAtTime(0.8, t);
+            noiseGain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+            
+            noiseSrc.connect(noiseFilter);
+            noiseFilter.connect(noiseGain);
+            noiseGain.connect(audioCtx.destination);
+            
+            const osc = audioCtx.createOscillator();
+            osc.type = 'triangle';
+            const oscGain = audioCtx.createGain();
+            osc.frequency.setValueAtTime(250, t);
+            oscGain.gain.setValueAtTime(0.5, t);
+            oscGain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+            
+            osc.connect(oscGain);
+            oscGain.connect(audioCtx.destination);
+            
+            noiseSrc.start(t);
+            osc.start(t);
+            osc.stop(t + 0.2);
+            noiseSrc.stop(t + 0.2);
+        }
+
+        function playCrash() {
+            if (!soundOn || !audioCtx) return;
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            const t = audioCtx.currentTime;
+            
+            const noiseSrc = audioCtx.createBufferSource();
+            noiseSrc.buffer = noiseBuffer;
+            const noiseFilter = audioCtx.createBiquadFilter();
+            noiseFilter.type = 'highpass';
+            noiseFilter.frequency.value = 2000;
+            const noiseGain = audioCtx.createGain();
+            
+            noiseGain.gain.setValueAtTime(0.8, t);
+            noiseGain.gain.exponentialRampToValueAtTime(0.01, t + 1.5);
+            
+            noiseSrc.connect(noiseFilter);
+            noiseFilter.connect(noiseGain);
+            noiseGain.connect(audioCtx.destination);
+            
+            noiseSrc.start(t);
+            noiseSrc.stop(t + 1.5);
+            
+            playKick();
+        }
+
+        // 說話函式：針對男聲與氣勢做調整
+        function speak(text, type) {
+            if (!soundOn) return;
+            
+            if (type === 'kick') playKick();
+            if (type === 'crash') playCrash();
+
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                
+                // 設定語音
+                if (!selectedVoice) loadVoices(); // 如果還沒載入，再試一次
+                if (selectedVoice) utterance.voice = selectedVoice;
+                
+                utterance.lang = 'en-US';
+                
+                // --- 調整參數以創造有氣勢的男聲 ---
+                utterance.rate = 1.3;  // 稍微快一點
+                utterance.pitch = 0.8; // 降低音調 (0.1 最低, 2 最高)。0.8 會讓聲音變深沉厚重
+                utterance.volume = 1;
+
+                speechSynthesis.speak(utterance);
+            }
+        }
+
+        function playCountIn() {
+            return new Promise(resolve => {
+                if (!soundOn) {
+                    setTimeout(resolve, 1000);
+                    return;
+                }
+                
+                // 每次倒數前，先強制停止之前的語音，避免卡住
+                speechSynthesis.cancel();
+                
+                const delay = 600;
+
+                countdownOverlay.textContent = "One";
+                speak("One", "kick");
+
+                setTimeout(() => {
+                    if(!isCountingDown) return;
+                    countdownOverlay.textContent = "Two";
+                    speak("Two", "kick");
+                }, delay);
+
+                setTimeout(() => {
+                    if(!isCountingDown) return;
+                    countdownOverlay.textContent = "Three";
+                    speak("Three", "kick");
+                }, delay * 2);
+
+                setTimeout(() => {
+                    if(!isCountingDown) return;
+                    countdownOverlay.textContent = "Go!";
+                    speak("Go", "crash");
+                }, delay * 3);
+
+                setTimeout(() => {
+                    resolve();
+                }, delay * 4);
+            });
+        }
 
         function handleFiles(files) {
             let loadedCount = 0;
@@ -323,10 +541,7 @@
                 return;
             }
             alert(`載入完成！共有 ${contentList.length} 張圖卡，開始遊戲囉～`);
-
-            // 關鍵：按下此按鈕後才顯示遊戲區
             studentGame.style.display = 'flex';
-
             generateNewRound();
             renderGrid();
         }
@@ -338,7 +553,6 @@
                 displayList.push(contentList[rand]);
             }
             currentIndex = 0;
-
             pageCount++;
             pageCounter.textContent = `Page: ${pageCount}`;
         }
@@ -364,63 +578,105 @@
             if (el) el.classList.add('current');
         }
 
-        function toggleGame() {
+        function gameLoop() {
+            if (!isRunning) return;
+
+            const indicator = document.getElementById('beat-indicator');
+            indicator.classList.add('beat-active');
+            setTimeout(() => indicator.classList.remove('beat-active'), 100);
+            
+            beatCount++;
+            
+            if (beatCount % beatsPerImage === 0) {
+                playSnare(); 
+                
+                currentIndex++;
+                if (currentIndex >= 8) {
+                    generateNewRound();
+                    renderGrid();
+                } else {
+                    highlightCurrent();
+                }
+            }
+
+            let nextDelay = 60000 / bpm;
+
+            if (isAcceleration) {
+                let level = pageCount - 1; 
+                if (level < 0) level = 0;
+                let timeReduction = level * 100;
+
+                let baseStayTime = (60000 / bpm) * beatsPerImage;
+                let newStayTime = baseStayTime - timeReduction;
+                if (newStayTime < 200) newStayTime = 200;
+
+                nextDelay = newStayTime / beatsPerImage;
+            }
+
+            timerId = setTimeout(gameLoop, nextDelay);
+        }
+
+        async function toggleGame() {
+            // 每次點擊都強制嘗試啟動/恢復 AudioContext
+            initAudio();
+
             if (contentList.length === 0) { alert('請先上傳圖片並儲存載入遊戲！'); return; }
-            if (isRunning) {
-                clearInterval(intervalId);
+            
+            if (isRunning || isCountingDown) {
+                clearTimeout(timerId);
                 isRunning = false;
+                isCountingDown = false;
+                speechSynthesis.cancel();
+                countdownOverlay.style.display = 'none';
+
                 document.getElementById('start-stop-btn').textContent = '開始遊戲';
                 document.getElementById('start-stop-btn').style.backgroundColor = '#51ff8a';
                 document.querySelectorAll('.grid-item').forEach(el => el.classList.remove('current'));
-                if (musicOn) bgm.pause();
 
-                alert(`已停止遊戲！\n總共玩了 ${pageCount} 頁（共 ${pageCount} 輪）`);
-            } else {
-                pageCount = 0;
-                pageCounter.textContent = 'Page: 0';
-                generateNewRound();
-                renderGrid();
-                const bpm = parseInt(document.getElementById('bpm').value) || 100;
-                const beatsPerImage = parseInt(document.getElementById('beats-per-image').value) || 4;
-                const beatTime = 60000 / bpm;
-                let beatCount = 0;
-                if (musicOn) {
-                    bgm.currentTime = 0;
-                    bgm.play();
+                if(pageCount > 0) {
+                    alert(`已停止遊戲！\n總共玩了 ${pageCount} 頁`);
                 }
-                intervalId = setInterval(() => {
-                    document.getElementById('beat-indicator').classList.add('beat-active');
-                    setTimeout(() => document.getElementById('beat-indicator').classList.remove('beat-active'), 150);
-                    beatCount++;
-                    if (beatCount % beatsPerImage === 0) {
-                        currentIndex++;
-                        if (currentIndex >= 8) {
-                            generateNewRound();
-                            renderGrid();
-                        } else {
-                            highlightCurrent();
-                        }
-                    }
-                }, beatTime);
-                isRunning = true;
+            } else {
                 document.getElementById('start-stop-btn').textContent = '停止遊戲';
                 document.getElementById('start-stop-btn').style.backgroundColor = '#ff6b9d';
+                
+                bpm = parseInt(document.getElementById('bpm').value) || 100;
+                beatsPerImage = parseInt(document.getElementById('beats-per-image').value) || 4;
+                isAcceleration = document.getElementById('acceleration-mode').checked;
+
+                pageCount = 0;
+                pageCounter.textContent = 'Page: 0';
+                beatCount = 0;
+                
+                generateNewRound();
+                renderGrid();
+
+                isCountingDown = true;
+                countdownOverlay.style.display = 'flex';
+                
+                await playCountIn(); 
+
+                if (!isCountingDown) return; 
+
+                isCountingDown = false;
+                countdownOverlay.style.display = 'none';
+                isRunning = true;
+                
+                let initialDelay = 60000 / bpm;
+                timerId = setTimeout(gameLoop, initialDelay);
             }
         }
 
-        function toggleMusic() {
-            musicOn = !musicOn;
-            if (musicOn) {
-                musicBtn.textContent = '關音樂';
-                musicBtn.classList.add('active');
-                if (isRunning) {
-                    bgm.currentTime = 0;
-                    bgm.play();
-                }
+        function toggleSound() {
+            initAudio();
+            soundOn = !soundOn;
+            if (soundOn) {
+                soundBtn.textContent = '關音效';
+                soundBtn.classList.add('active');
             } else {
-                musicBtn.textContent = '開音樂';
-                musicBtn.classList.remove('active');
-                bgm.pause();
+                soundBtn.textContent = '開音效';
+                soundBtn.classList.remove('active');
+                speechSynthesis.cancel();
             }
         }
     </script>
