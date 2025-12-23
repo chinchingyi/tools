@@ -3,10 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Say the word on beat</title>
+    <title>Say the word on beat v10.0</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
+    
     <style>
         body {
-            font-family: "Microsoft JhengHei", Arial, sans-serif;
+            font-family: 'Patrick Hand', "Microsoft JhengHei", Arial, sans-serif;
             margin: 0;
             padding: 0;
             background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
@@ -17,11 +21,19 @@
         }
         h1.game-title {
             text-align: center;
-            font-size: 48px;
+            font-size: 56px;
             font-weight: bold;
             color: #ff6b9d;
             margin: 20px 0 10px;
             text-shadow: 3px 3px 8px rgba(0,0,0,0.2);
+            letter-spacing: 2px;
+        }
+        .version-tag {
+            text-align: center;
+            font-size: 16px;
+            color: #888;
+            margin-bottom: 10px;
+            font-family: sans-serif;
         }
         #teacher-settings {
             width: 90%;
@@ -40,6 +52,7 @@
             gap: 20px;
             flex-wrap: wrap;
             margin-bottom: 15px;
+            font-family: "Microsoft JhengHei", sans-serif;
         }
         #top-controls label {
             font-size: 18px;
@@ -72,6 +85,8 @@
             border-radius: 12px;
             cursor: pointer;
             box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            font-family: 'Patrick Hand', sans-serif;
+            font-weight: bold;
         }
         #upload-btn:hover, #top-controls button:hover {
             background: #ff375f;
@@ -128,11 +143,12 @@
             flex-direction: column;
             position: relative;
             display: none;
+            min-height: 400px;
         }
         #student-game h2 {
             text-align: center;
             margin: 0 0 20px;
-            font-size: 32px;
+            font-size: 42px;
             color: #ff6b9d;
         }
         #grid {
@@ -142,6 +158,7 @@
             gap: 20px;
             max-width: 1000px;
             margin: 0 auto;
+            position: relative;
         }
         .grid-item {
             background: white;
@@ -149,6 +166,11 @@
             box-shadow: 0 6px 20px rgba(0,0,0,0.15);
             overflow: hidden;
             padding: 10px;
+            opacity: 0; 
+            transition: opacity 0.2s;
+        }
+        .grid-item.visible {
+            opacity: 1;
         }
         .grid-item img {
             width: 100%;
@@ -183,9 +205,11 @@
         }
         #start-stop-btn, #sound-toggle {
             padding: 16px 40px;
-            font-size: 24px;
+            font-size: 28px;
             border-radius: 20px;
             box-shadow: 0 6px 15px rgba(0,0,0,0.2);
+            font-family: 'Patrick Hand', sans-serif;
+            font-weight: bold;
         }
         #start-stop-btn {
             background: #51ff8a;
@@ -206,7 +230,7 @@
             position: absolute;
             bottom: 20px;
             right: 30px;
-            font-size: 28px;
+            font-size: 32px;
             font-weight: bold;
             color: #ff6b9d;
             background: rgba(255,255,255,0.8);
@@ -215,25 +239,92 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.2);
             z-index: 10;
         }
+        /* 倒數遮罩 */
         #countdown-overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255,255,255,0.8);
+            background: rgba(255,255,255,0.9);
             display: none;
             justify-content: center;
             align-items: center;
-            font-size: 80px;
+            font-size: 120px;
             color: #ff375f;
             font-weight: bold;
             z-index: 20;
             border-radius: 20px;
         }
+        #ready-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 100px;
+            color: #ff6b9d;
+            text-shadow: 4px 4px 0px #fff, 6px 6px 0px rgba(0,0,0,0.1);
+            display: none;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        /* 暫停/結算 視窗樣式 */
+        #pause-modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 40px;
+            border-radius: 25px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            text-align: center;
+            z-index: 30;
+            display: none;
+            min-width: 320px;
+            border: 5px solid #ff6b9d;
+        }
+        #pause-modal h3 {
+            font-size: 48px;
+            color: #ff6b9d;
+            margin: 0 0 20px;
+        }
+        #pause-modal p {
+            font-size: 32px;
+            color: #555;
+            margin: 0 0 30px;
+        }
+        .modal-btn {
+            display: block;
+            width: 100%;
+            padding: 15px 0;
+            margin: 10px 0;
+            font-size: 24px;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            font-family: 'Patrick Hand', sans-serif;
+            font-weight: bold;
+            transition: transform 0.1s;
+        }
+        .modal-btn:hover {
+            transform: scale(1.02);
+        }
+        .btn-continue {
+            background: #51ff8a;
+            color: #005a2b;
+        }
+        .btn-restart {
+            background: #ff4757;
+            color: white;
+        }
     </style>
 </head>
 <body>
     <h1 class="game-title">Say the word on beat</h1>
+    <div class="version-tag">Version 10.0</div>
+    
     <div id="teacher-settings">
         <p style="text-align:center; font-size:18px; color:#666; margin:0 0 15px;">
+            請確保 <b>1.mp3</b> (Ready Go) 與 <b>2.mp3</b> (出題) 位於同一資料夾。<br>
             上傳圖片後，點「刪除」可移除不需要的圖片
         </p>
         <div id="top-controls">
@@ -252,18 +343,38 @@
         <div id="load-status"></div>
         <div id="images-preview"></div>
     </div>
+
     <div id="student-game">
         <div id="countdown-overlay">Ready...</div>
+        
+        <!-- 暫停/結算視窗 -->
+        <div id="pause-modal">
+            <h3>Game Paused</h3>
+            <p id="pause-msg">You are at Page 1</p>
+            <button class="modal-btn btn-continue" onclick="continueGame()">Continue Challenge</button>
+            <button class="modal-btn btn-restart" onclick="quitGame()">Restart / Stop</button>
+        </div>
+
         <h2>Say the word on beat!</h2>
-        <div id="grid"></div>
+        
+        <div style="position: relative; flex: 1; width: 100%;">
+            <div id="ready-message">Ready?</div>
+            <div id="grid"></div>
+        </div>
+
         <div id="controls">
             <div id="beat-indicator">🔴</div>
-            <button id="start-stop-btn" onclick="toggleGame()">開始遊戲</button>
-            <button id="sound-toggle" onclick="toggleSound()">關音效</button>
+            <button id="start-stop-btn" onclick="toggleGame()">Start Game</button>
+            <button id="sound-toggle" onclick="toggleSound()">Sound Off</button>
         </div>
         <div id="page-counter">Page: 0</div>
     </div>
+
     <input type="file" id="file-input" multiple accept="image/*" style="display:none;">
+
+    <!-- 外部音效定義 -->
+    <audio id="audio-intro" src="1.mp3" preload="auto"></audio>
+    <audio id="audio-reveal" src="2.mp3" preload="auto"></audio>
 
     <script>
         let contentList = [];
@@ -274,15 +385,18 @@
         let soundOn = true;
         let pageCount = 0;
         
+        // 狀態管理
+        let gameState = 'IDLE'; // IDLE, COUNTDOWN, REVEAL, PLAYING, PAUSED
+        
         let beatCount = 0;
         let beatsPerImage = 4;
-        let bpm = 100;
-        let initialBpm = 100; // 新增：用來記錄一開始設定的速度
+        let initialBpm = 100;
         let isAcceleration = false;
-        let isCountingDown = false;
 
+        const audioIntro = document.getElementById('audio-intro'); 
+        const audioReveal = document.getElementById('audio-reveal'); 
+        
         let audioCtx = null;
-        let selectedVoice = null;
         let noiseBuffer = null;
 
         const loadStatus = document.getElementById('load-status');
@@ -293,26 +407,28 @@
         const soundBtn = document.getElementById('sound-toggle');
         const studentGame = document.getElementById('student-game');
         const countdownOverlay = document.getElementById('countdown-overlay');
+        const readyMessage = document.getElementById('ready-message');
+        const pauseModal = document.getElementById('pause-modal');
+        const pauseMsg = document.getElementById('pause-msg');
+        const startStopBtn = document.getElementById('start-stop-btn');
 
-        soundBtn.textContent = '關音效';
+        soundBtn.textContent = 'Sound Off';
         soundBtn.classList.add('active');
+        startStopBtn.textContent = 'Start Game';
 
         uploadBtn.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', () => {
             if (fileInput.files.length) handleFiles(fileInput.files);
         });
 
-        function loadVoices() {
-            const voices = window.speechSynthesis.getVoices();
-            selectedVoice = voices.find(v => v.name.includes('David') || v.name.includes('Daniel') || v.name.includes('Google US English'));
-            if (!selectedVoice) {
-                selectedVoice = voices.find(v => v.lang.startsWith('en'));
+        audioIntro.addEventListener('ended', () => {
+            if (gameState === 'COUNTDOWN') {
+                countdownOverlay.style.display = 'none';
+                startRevealPhase();
             }
-        }
-        if (window.speechSynthesis.onvoiceschanged !== undefined) {
-            window.speechSynthesis.onvoiceschanged = loadVoices;
-        }
+        });
 
+        // --- Web Audio API 合成音效核心 (僅用於遊戲進行時) ---
         function initAudio() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -330,11 +446,10 @@
             }
         }
 
-        function playWhistle() {
+        // 哨子聲 (維持大聲)
+        function playWhistle(time) {
             if (!soundOn || !audioCtx) return;
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-
-            const t = audioCtx.currentTime;
+            const t = time || audioCtx.currentTime;
 
             const createWhistlePart = (freq, start, duration) => {
                 const osc = audioCtx.createOscillator();
@@ -365,120 +480,109 @@
                 lfo.stop(start + duration);
             };
 
-            createWhistlePart(2200, t, 0.15); 
-            createWhistlePart(2300, t, 0.15);
+            createWhistlePart(2000, t, 0.15); 
+            createWhistlePart(2100, t, 0.15);
         }
 
-        function playTone(time, freq, decay, type, vol) {
+        // 背景樂器 (音量調低約70% -> 0.25左右)
+        function playDrum(type, time) {
             if (!soundOn || !audioCtx) return;
-            
+            const t = time || audioCtx.currentTime;
             const gain = audioCtx.createGain();
-            
-            if (type === 'noise') {
+
+            if (type === 'kick') { 
+                const osc = audioCtx.createOscillator();
+                osc.frequency.setValueAtTime(150, t);
+                osc.frequency.exponentialRampToValueAtTime(0.01, t + 0.5);
+                
+                // 大幅調降音量
+                gain.gain.setValueAtTime(0.25, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+                
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(t);
+                osc.stop(t + 0.5);
+            } 
+            else if (type === 'snare') { 
                 const src = audioCtx.createBufferSource();
                 src.buffer = noiseBuffer;
                 const filter = audioCtx.createBiquadFilter();
                 filter.type = 'highpass';
-                filter.frequency.value = 800;
-                
+                filter.frequency.value = 1000;
                 src.connect(filter);
                 filter.connect(gain);
-                gain.gain.setValueAtTime(vol, time);
-                gain.gain.exponentialRampToValueAtTime(0.01, time + decay);
+                
+                // 調降
+                gain.gain.setValueAtTime(0.12, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
                 
                 gain.connect(audioCtx.destination);
-                src.start(time);
-                src.stop(time + decay);
-            } else {
+                src.start(t);
+                src.stop(t + 0.2);
+            }
+            else if (type === 'hihat') { 
+                const src = audioCtx.createBufferSource();
+                src.buffer = noiseBuffer;
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'highpass';
+                filter.frequency.value = 5000;
+                src.connect(filter);
+                filter.connect(gain);
+                
+                // 調降
+                gain.gain.setValueAtTime(0.06, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
+                
+                gain.connect(audioCtx.destination);
+                src.start(t);
+                src.stop(t + 0.05);
+            }
+            else if (type === 'bass') { 
                 const osc = audioCtx.createOscillator();
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(freq, time);
-                osc.frequency.exponentialRampToValueAtTime(10, time + decay);
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(100, t); 
+                
+                // 調降
+                gain.gain.setValueAtTime(0.1, t);
+                gain.gain.linearRampToValueAtTime(0, t + 0.2);
                 
                 osc.connect(gain);
-                gain.gain.setValueAtTime(vol, time);
-                gain.gain.exponentialRampToValueAtTime(0.01, time + decay);
-                
                 gain.connect(audioCtx.destination);
-                osc.start(time);
-                osc.stop(time + decay);
+                osc.start(t);
+                osc.stop(t + 0.2);
             }
         }
 
-        // 背景節奏：音量更小
-        function scheduleBackgroundRhythm(beatDuration) {
+        function playLivelyBackground(isMoving) {
             if (!soundOn || !audioCtx) return;
             const t = audioCtx.currentTime;
-            
-            // Boom (0.15 音量)
-            playTone(t, 100, 0.25, 'sine', 0.15); 
 
-            // Tick (0.05 音量) - 幾乎只是空氣感
-            playTone(t + (beatDuration / 1000 * 0.333), 0, 0.1, 'noise', 0.05); 
-            playTone(t + (beatDuration / 1000 * 0.666), 0, 0.1, 'noise', 0.05); 
-        }
-
-        function speak(text) {
-            if (!soundOn) return;
-            playTone(audioCtx.currentTime, 80, 0.2, 'sine', 0.1); 
-
-            if ('speechSynthesis' in window) {
-                const utterance = new SpeechSynthesisUtterance(text);
-                if (!selectedVoice) loadVoices();
-                if (selectedVoice) utterance.voice = selectedVoice;
-                
-                utterance.lang = 'en-US';
-                utterance.rate = 1.6;  
-                utterance.pitch = 0.8; 
-                utterance.volume = 1; 
-
-                speechSynthesis.speak(utterance);
+            if (isMoving) {
+                playWhistle(t);   // 哨子 (大聲)
+                playDrum('kick', t); // 背景 (小聲)
+                playDrum('hihat', t);
+            } else {
+                const step = beatCount % 4;
+                if (step === 1 || step === 3) {
+                    playDrum('snare', t);
+                    playDrum('hihat', t);
+                    playDrum('bass', t);
+                } else if (step === 2) {
+                    playDrum('kick', t);
+                    playDrum('hihat', t);
+                } else {
+                    playDrum('hihat', t);
+                }
             }
         }
 
-        function playCountIn() {
-            return new Promise(resolve => {
-                if (!soundOn) {
-                    setTimeout(resolve, 1000);
-                    return;
-                }
-                
-                speechSynthesis.cancel();
-                const delay = 500; 
-
-                countdownOverlay.textContent = "One";
-                speak("One");
-
-                setTimeout(() => {
-                    if(!isCountingDown) return;
-                    countdownOverlay.textContent = "Two";
-                    speak("Two");
-                }, delay);
-
-                setTimeout(() => {
-                    if(!isCountingDown) return;
-                    countdownOverlay.textContent = "Three";
-                    speak("Three");
-                }, delay * 2);
-
-                setTimeout(() => {
-                    if(!isCountingDown) return;
-                    countdownOverlay.textContent = "Go!";
-                    playWhistle();
-                    speak("Go");
-                }, delay * 3);
-
-                setTimeout(() => {
-                    resolve();
-                }, delay * 4);
-            });
-        }
-
+        // --- 檔案處理 ---
         function handleFiles(files) {
             let loadedCount = 0;
             const total = files.length;
             if (total === 0) return;
-            loadStatus.innerHTML = `<p style="color:#ff6b9d;">正在載入 ${total} 張圖片，請稍候...</p>`;
+            loadStatus.innerHTML = `<p style="color:#ff6b9d;">Loading ${total} images...</p>`;
             Array.from(files).forEach(file => {
                 if (!file.type.startsWith('image/')) {
                     loadedCount++;
@@ -489,30 +593,25 @@
                     const url = e.target.result;
                     const div = document.createElement('div');
                     div.className = 'image-item';
-
                     const img = document.createElement('img');
                     img.src = url;
-
                     const tip = document.createElement('div');
                     tip.className = 'tip';
                     tip.textContent = file.name;
-
                     const deleteBtn = document.createElement('button');
-                    deleteBtn.textContent = '刪除';
+                    deleteBtn.textContent = 'Del';
                     deleteBtn.className = 'delete-btn';
                     deleteBtn.onclick = (e) => {
                         e.stopPropagation();
                         div.remove();
                     };
-
                     div.appendChild(img);
                     div.appendChild(tip);
                     div.appendChild(deleteBtn);
                     preview.appendChild(div);
-
                     loadedCount++;
                     if (loadedCount === total) {
-                        loadStatus.innerHTML = `<p style="color:#51ff8a;">成功載入 ${total} 張圖片！</p>`;
+                        loadStatus.innerHTML = `<p style="color:#51ff8a;">Loaded ${total} images!</p>`;
                     }
                 };
                 reader.readAsDataURL(file);
@@ -527,13 +626,14 @@
                 contentList.push({ word: '', image });
             });
             if (contentList.length === 0) {
-                alert('請先上傳圖片！');
+                alert('Please upload images first!');
                 return;
             }
-            alert(`載入完成！共有 ${contentList.length} 張圖卡，開始遊戲囉～`);
+            alert(`Loaded! ${contentList.length} cards.`);
             studentGame.style.display = 'flex';
+            readyMessage.style.display = 'block';
             generateNewRound();
-            renderGrid();
+            renderGrid(false);
         }
 
         function generateNewRound() {
@@ -547,19 +647,20 @@
             pageCounter.textContent = `Page: ${pageCount}`;
         }
 
-        function renderGrid() {
+        function renderGrid(initiallyVisible = false) {
             const grid = document.getElementById('grid');
             grid.innerHTML = '';
             displayList.forEach((item, index) => {
                 const div = document.createElement('div');
                 div.className = 'grid-item';
+                if (initiallyVisible) div.classList.add('visible');
                 div.id = 'item-' + index;
                 const img = document.createElement('img');
                 img.src = item.image;
                 div.appendChild(img);
                 grid.appendChild(div);
             });
-            highlightCurrent();
+            if (initiallyVisible) highlightCurrent();
         }
 
         function highlightCurrent() {
@@ -568,129 +669,203 @@
             if (el) el.classList.add('current');
         }
 
-        // 核心迴圈修正
-        function gameLoop() {
+        // --- 遊戲流程 ---
+
+        function toggleGame() {
+            if (contentList.length === 0) { alert('Please load game first!'); return; }
+            
+            if (isRunning) {
+                pauseGame(); // 改為暫停
+            } else {
+                startGame();
+            }
+        }
+
+        // 觸發暫停
+        function pauseGame() {
+            clearTimeout(timerId);
+            isRunning = false;
+            gameState = 'PAUSED';
+
+            // 停止外部音訊
+            audioIntro.pause(); 
+            audioReveal.pause();
+            
+            // 顯示遮罩與訊息
+            pauseMsg.textContent = `You are at Page ${pageCount}`;
+            pauseModal.style.display = 'block';
+            
+            startStopBtn.textContent = 'Start Game';
+            startStopBtn.style.backgroundColor = '#51ff8a';
+        }
+
+        // 繼續挑戰
+        function continueGame() {
+            pauseModal.style.display = 'none';
+            isRunning = true;
+            startStopBtn.textContent = 'Stop Game';
+            startStopBtn.style.backgroundColor = '#ff6b9d';
+            
+            // 重新出題
+            renderGrid(false); 
+            startRevealPhase();
+        }
+
+        // 放棄 / 重新開始
+        function quitGame() {
+            pauseModal.style.display = 'none';
+            resetGameLogic();
+        }
+
+        function resetGameLogic() {
+            clearTimeout(timerId);
+            isRunning = false;
+            gameState = 'IDLE';
+            
+            audioIntro.pause(); audioIntro.currentTime = 0;
+            audioReveal.pause(); audioReveal.currentTime = 0;
+            
+            countdownOverlay.style.display = 'none';
+            readyMessage.style.display = 'block';
+
+            startStopBtn.textContent = 'Start Game';
+            startStopBtn.style.backgroundColor = '#51ff8a';
+            document.querySelectorAll('.grid-item').forEach(el => el.classList.remove('current'));
+            document.querySelectorAll('.grid-item').forEach(el => el.classList.add('visible'));
+        }
+
+        function startGame() {
+            initAudio(); // 初始化 AudioContext
+
+            startStopBtn.textContent = 'Stop Game';
+            startStopBtn.style.backgroundColor = '#ff6b9d';
+            readyMessage.style.display = 'none';
+            
+            initialBpm = parseInt(document.getElementById('bpm').value) || 100;
+            beatsPerImage = parseInt(document.getElementById('beats-per-image').value) || 4;
+            isAcceleration = document.getElementById('acceleration-mode').checked;
+
+            pageCount = 0;
+            pageCounter.textContent = 'Page: 0';
+            beatCount = 0;
+            
+            generateNewRound();
+            renderGrid(false); 
+
+            isRunning = true;
+            gameState = 'COUNTDOWN';
+            
+            countdownOverlay.style.display = 'flex';
+            countdownOverlay.textContent = "Ready...";
+
+            if (soundOn) {
+                audioIntro.volume = 1.0;
+                audioIntro.play().catch(e => {
+                    console.error("1.mp3 Play Error", e);
+                    startRevealPhase();
+                });
+            } else {
+                setTimeout(startRevealPhase, 2000);
+            }
+        }
+
+        function startRevealPhase() {
             if (!isRunning) return;
+            gameState = 'REVEAL';
+            countdownOverlay.style.display = 'none';
+            readyMessage.style.display = 'none';
+
+            let revealDuration = 4000;
+            if (audioReveal.duration && isFinite(audioReveal.duration)) {
+                revealDuration = audioReveal.duration * 1000;
+            }
+            const interval = revealDuration / 8;
+
+            if (soundOn) {
+                audioReveal.currentTime = 0;
+                audioReveal.play().catch(e => console.error("2.mp3 Play Error", e));
+            }
+
+            let revealIndex = 0;
+            function revealStep() {
+                if (!isRunning || gameState !== 'REVEAL') return;
+                const el = document.getElementById('item-' + revealIndex);
+                if (el) el.classList.add('visible');
+                revealIndex++;
+                if (revealIndex < 8) {
+                    timerId = setTimeout(revealStep, interval);
+                } else {
+                    timerId = setTimeout(startMainGameLoop, interval);
+                }
+            }
+            revealStep();
+        }
+
+        function startMainGameLoop() {
+            if (!isRunning) return;
+            gameState = 'PLAYING';
+            currentIndex = 0;
+            beatCount = 0;
+            highlightCurrent();
+
+            // 第一拍
+            playLivelyBackground(true);
+            
+            gameLoop();
+        }
+
+        function gameLoop() {
+            if (!isRunning || gameState !== 'PLAYING') return;
 
             const indicator = document.getElementById('beat-indicator');
             indicator.classList.add('beat-active');
             setTimeout(() => indicator.classList.remove('beat-active'), 100);
-            
-            // --- 加速邏輯修正區 ---
-            // 這裡不再依賴會變動的 'bpm'，而是永遠依賴 'initialBpm'
-            // 這樣可以保證同一頁內速度絕對恆定
-            
-            let currentDelay; // 每一拍的間隔時間 (ms)
-
-            if (isAcceleration) {
-                let level = Math.max(0, pageCount - 1);
-                let timeReduction = level * 50; // 每頁減少 50ms
-
-                // 計算基礎：每一張圖片(含所有節拍)的總停留時間，基於初始 BPM
-                let baseStayTime = (60000 / initialBpm) * beatsPerImage;
-                
-                // 新的總停留時間
-                let newStayTime = baseStayTime - timeReduction;
-                
-                // 安全限制
-                if (newStayTime < 200) newStayTime = 200;
-
-                // 反推回每一拍的時間
-                currentDelay = newStayTime / beatsPerImage;
-            } else {
-                // 如果沒開加速，就固定用初始速度
-                currentDelay = 60000 / initialBpm;
-            }
-
-            // 更新全域 bpm，這只會影響 scheduleBackgroundRhythm 裡面的時間計算，
-            // 不會再影響下一次 gameLoop 的 currentDelay 計算
-            bpm = 60000 / currentDelay;
-
-            // 播放背景韻律 (使用計算出的當前每一拍長度)
-            scheduleBackgroundRhythm(currentDelay);
 
             beatCount++;
-            
-            // 綠格移動時播放哨子聲
+            let isMoving = false;
+
             if (beatCount % beatsPerImage === 0) {
-                playWhistle(); 
-                
+                isMoving = true;
                 currentIndex++;
                 if (currentIndex >= 8) {
                     generateNewRound();
-                    renderGrid();
+                    renderGrid(false);
+                    startRevealPhase(); 
+                    return;
                 } else {
                     highlightCurrent();
                 }
             }
 
-            timerId = setTimeout(gameLoop, currentDelay);
+            let delay = calculateCurrentDelay();
+            playLivelyBackground(isMoving);
+
+            timerId = setTimeout(gameLoop, delay);
         }
 
-        async function toggleGame() {
-            initAudio();
-
-            if (contentList.length === 0) { alert('請先上傳圖片並儲存載入遊戲！'); return; }
-            
-            if (isRunning || isCountingDown) {
-                clearTimeout(timerId);
-                isRunning = false;
-                isCountingDown = false;
-                speechSynthesis.cancel();
-                countdownOverlay.style.display = 'none';
-
-                document.getElementById('start-stop-btn').textContent = '開始遊戲';
-                document.getElementById('start-stop-btn').style.backgroundColor = '#51ff8a';
-                document.querySelectorAll('.grid-item').forEach(el => el.classList.remove('current'));
-
-                if(pageCount > 0) {
-                    alert(`已停止遊戲！\n總共玩了 ${pageCount} 頁`);
-                }
+        function calculateCurrentDelay() {
+            if (isAcceleration) {
+                let level = Math.max(0, pageCount - 1);
+                let timeReduction = level * 50; 
+                let baseStayTime = (60000 / initialBpm) * beatsPerImage;
+                let newStayTime = baseStayTime - timeReduction;
+                if (newStayTime < 200) newStayTime = 200;
+                return newStayTime / beatsPerImage;
             } else {
-                document.getElementById('start-stop-btn').textContent = '停止遊戲';
-                document.getElementById('start-stop-btn').style.backgroundColor = '#ff6b9d';
-                
-                // 鎖定初始設定
-                initialBpm = parseInt(document.getElementById('bpm').value) || 100;
-                bpm = initialBpm;
-                
-                beatsPerImage = parseInt(document.getElementById('beats-per-image').value) || 4;
-                isAcceleration = document.getElementById('acceleration-mode').checked;
-
-                pageCount = 0;
-                pageCounter.textContent = 'Page: 0';
-                beatCount = 0;
-                
-                generateNewRound();
-                renderGrid();
-
-                isCountingDown = true;
-                countdownOverlay.style.display = 'flex';
-                
-                await playCountIn(); 
-
-                if (!isCountingDown) return; 
-
-                isCountingDown = false;
-                countdownOverlay.style.display = 'none';
-                isRunning = true;
-                
-                // 開始第一拍
-                let initialDelay = 60000 / initialBpm;
-                timerId = setTimeout(gameLoop, initialDelay);
+                return 60000 / initialBpm;
             }
         }
 
         function toggleSound() {
-            initAudio();
             soundOn = !soundOn;
             if (soundOn) {
-                soundBtn.textContent = '關音效';
+                soundBtn.textContent = 'Sound Off';
                 soundBtn.classList.add('active');
             } else {
-                soundBtn.textContent = '開音效';
+                soundBtn.textContent = 'Sound On';
                 soundBtn.classList.remove('active');
-                speechSynthesis.cancel();
+                audioIntro.pause();
+                audioReveal.pause();
             }
         }
     </script>
