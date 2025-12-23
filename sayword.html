@@ -3,337 +3,442 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Say the word on beat v10.0</title>
+    <title>Say the word on beat</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
     
     <style>
+        :root {
+            --primary-pink: #ff8fa3;
+            --dark-pink: #ff4d6d;
+            --pastel-blue: #c2f0fc;
+            --pastel-green: #b8f2e6;
+            --text-color: #594a4e;
+            --card-bg: #fff0f3;
+        }
+
         body {
             font-family: 'Patrick Hand', "Microsoft JhengHei", Arial, sans-serif;
             margin: 0;
             padding: 0;
-            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            background-color: #fff0f5;
+            background-image: radial-gradient(#ffccd5 20%, transparent 20%),
+                              linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
+            background-size: 20px 20px, 100% 100%;
+            background-attachment: fixed;
             min-height: 100vh;
             display: flex;
             flex-direction: column;
             position: relative;
+            color: var(--text-color);
         }
+
         h1.game-title {
             text-align: center;
-            font-size: 56px;
+            font-size: 72px;
             font-weight: bold;
-            color: #ff6b9d;
+            color: #ff477e;
             margin: 20px 0 10px;
-            text-shadow: 3px 3px 8px rgba(0,0,0,0.2);
-            letter-spacing: 2px;
+            text-shadow: 3px 3px 0 #fff, 5px 5px 0 rgba(0,0,0,0.1);
+            letter-spacing: 3px;
+            /* 修改：移除旋轉角度，變回端正 */
+            transform: none; 
         }
+
         .version-tag {
             text-align: center;
-            font-size: 16px;
+            font-size: 18px;
             color: #888;
-            margin-bottom: 10px;
+            margin-bottom: 20px;
             font-family: sans-serif;
+            background: rgba(255,255,255,0.6);
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            margin-left: 50%;
+            transform: translateX(-50%);
         }
-        #teacher-settings {
+
+        #teacher-settings, #student-game {
             width: 90%;
             max-width: 1100px;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 20px 30px;
-            border-radius: 20px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
-            margin: 0 auto 20px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 30px;
+            border-radius: 35px;
+            box-shadow: 0 15px 35px rgba(255, 107, 129, 0.15);
+            margin: 0 auto 30px;
             flex-shrink: 0;
+            border: 5px solid #fff;
         }
+
+        #student-game {
+            display: none;
+            flex-direction: column; 
+            align-items: center;
+            min-height: 500px;
+            border: 8px solid #bde0fe;
+            position: relative;
+        }
+
+        #student-game h2 { display: none; }
+
         #top-controls {
             display: flex;
             justify-content: center;
             align-items: center;
-            gap: 20px;
+            gap: 15px;
             flex-wrap: wrap;
-            margin-bottom: 15px;
-            font-family: "Microsoft JhengHei", sans-serif;
+            margin-bottom: 20px;
+            font-size: 22px;
         }
+
         #top-controls label {
-            font-size: 18px;
-            color: #555;
-            white-space: nowrap;
+            color: #ff758c;
+            font-weight: bold;
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 8px;
             cursor: pointer;
         }
+
         #top-controls input[type="number"] {
-            width: 80px;
+            width: 70px;
             padding: 8px;
-            font-size: 16px;
-            text-align: center;
-            border: 1px solid #ccc;
-            border-radius: 8px;
-        }
-        #top-controls input[type="checkbox"] {
-            width: 20px;
-            height: 20px;
-            cursor: pointer;
-        }
-        #upload-btn, #top-controls button {
-            padding: 14px 32px;
             font-size: 20px;
-            background: #ff6b9d;
-            color: white;
-            border: none;
-            border-radius: 12px;
+            text-align: center;
+            border: 3px solid #ffccd5;
+            border-radius: 15px;
+            color: var(--text-color);
+            background: #fff;
+            font-family: 'Patrick Hand', sans-serif;
+            outline: none;
+        }
+        #top-controls input[type="number"]:focus {
+            border-color: var(--dark-pink);
+        }
+
+        #top-controls input[type="checkbox"] {
+            width: 24px;
+            height: 24px;
+            accent-color: var(--dark-pink);
             cursor: pointer;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+
+        /* 通用按鈕樣式 */
+        button, #upload-btn {
+            padding: 12px 30px;
+            font-size: 26px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
             font-family: 'Patrick Hand', sans-serif;
             font-weight: bold;
+            transition: all 0.1s;
+            position: relative;
+            top: 0;
+            background: #4facfe;
+            color: white;
+            box-shadow: 0 6px 0 #0072ff, 0 10px 10px rgba(0,0,0,0.1);
+            text-shadow: 1px 1px 0 rgba(0,0,0,0.2);
         }
-        #upload-btn:hover, #top-controls button:hover {
-            background: #ff375f;
+
+        button:active, #upload-btn:active {
+            top: 6px;
+            box-shadow: 0 0 0 #0072ff, 0 0 0 rgba(0,0,0,0.1);
         }
+
+        button:hover, #upload-btn:hover {
+            filter: brightness(1.1);
+        }
+
+        #upload-btn {
+            background: #fa709a; 
+            box-shadow: 0 6px 0 #d6306d, 0 10px 10px rgba(0,0,0,0.1);
+        }
+        #upload-btn:active {
+            box-shadow: 0 0 0 #d6306d;
+        }
+
         #images-preview {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
             gap: 20px;
-            margin-top: 10px;
+            margin-top: 15px;
             max-height: 400px;
             overflow-y: auto;
+            padding: 10px;
         }
+        
         .image-item {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
-            padding: 15px;
+            background: #fff;
+            border-radius: 20px;
+            box-shadow: 3px 3px 10px rgba(0,0,0,0.05);
+            padding: 10px;
             text-align: center;
+            border: 2px dashed #ffccd5;
         }
+        
         .image-item img {
             width: 100%;
-            height: 220px;
+            height: 180px;
             object-fit: contain;
-            border-radius: 12px;
-            background: #f0f0f0;
+            border-radius: 15px;
+            background: #f8f9fa;
         }
-        .image-item .tip {
-            font-size: 13px;
-            color: #666;
-            margin: 10px 0 8px;
-        }
+
         .image-item .delete-btn {
-            padding: 8px 18px;
-            font-size: 16px;
-            background: #ff4757;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
+            background: #ff6b6b;
+            box-shadow: 0 4px 0 #c92a2a;
+            padding: 5px 15px;
+            font-size: 20px;
+            margin-top: 5px;
         }
-        .image-item .delete-btn:hover {
-            background: #ff1744;
+        .image-item .delete-btn:active {
+            box-shadow: 0 0 0 #c92a2a;
         }
-        #student-game {
+
+        /* 遊戲內容區 */
+        .game-content-wrapper {
+            width: 100%;
             flex: 1;
-            width: 90%;
-            max-width: 1100px;
-            background: rgba(255, 255, 255, 0.95);
-            padding: 20px 40px;
-            border-radius: 20px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.15);
-            margin: 0 auto 30px;
-            display: flex;
-            flex-direction: column;
             position: relative;
-            display: none;
-            min-height: 400px;
+            margin-bottom: 20px;
         }
-        #student-game h2 {
-            text-align: center;
-            margin: 0 0 20px;
-            font-size: 42px;
-            color: #ff6b9d;
-        }
+
         #grid {
-            flex: 1;
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 20px;
-            max-width: 1000px;
-            margin: 0 auto;
-            position: relative;
+            gap: 25px;
+            width: 100%;
+            height: 100%;
         }
+
         .grid-item {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+            background: #fff;
+            border-radius: 25px;
+            box-shadow: 5px 5px 0px rgba(0,0,0,0.05);
             overflow: hidden;
-            padding: 10px;
+            padding: 12px;
             opacity: 0; 
-            transition: opacity 0.2s;
+            transition: opacity 0.2s, transform 0.2s;
+            border: 3px solid #f0f0f0;
         }
+
         .grid-item.visible {
             opacity: 1;
         }
+
         .grid-item img {
             width: 100%;
             height: 100%;
             object-fit: contain;
             display: block;
-            border-radius: 12px;
+            border-radius: 18px;
         }
+
         .current {
-            border: 6px solid #51ff8a !important;
-            animation: gentlePulse 1s infinite alternate;
+            border: 6px solid #43e97b !important;
+            box-shadow: 0 0 0 4px #b8f2e6, 0 10px 20px rgba(67, 233, 123, 0.4);
+            transform: scale(1.05) rotate(1deg);
+            z-index: 10;
         }
-        @keyframes gentlePulse {
-            from { box-shadow: 0 0 15px #51ff8a; }
-            to { box-shadow: 0 0 30px #51ff8a; }
-        }
+
+        /* --- 底部控制區 --- */
         #controls {
             display: flex;
             justify-content: center;
             align-items: center;
-            gap: 30px;
-            margin-top: 20px;
-            flex-shrink: 0;
+            gap: 20px; /* 按鈕間距 */
+            width: 100%;
+            margin-top: auto;
+            padding-top: 10px;
         }
+
+        /* 紅色糖果球 (節拍燈) - 保持小顆 */
         #beat-indicator {
-            font-size: 60px;
-            transition: transform 0.05s ease-out;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #ff9a9e, #ff6b81);
+            box-shadow: 0 3px 10px rgba(255, 107, 129, 0.4);
+            position: relative;
+            flex-shrink: 0;
+            margin-right: 10px; /* 與按鈕區隔開一點 */
+        }
+        #beat-indicator::after {
+            content: '';
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            width: 10px;
+            height: 6px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.8);
+            transform: rotate(-45deg);
         }
         .beat-active {
-            transform: scale(1.7);
-            filter: brightness(2);
+            transform: scale(1.3);
+            filter: brightness(1.2);
         }
-        #start-stop-btn, #sound-toggle {
-            padding: 16px 40px;
+
+        /* --- 三大按鈕統一化 --- */
+        /* 定義共同的尺寸和基本樣式 */
+        #start-stop-btn, #sound-toggle, #page-counter {
+            width: 200px;       /* 固定寬度 */
+            height: 65px;       /* 固定高度 */
+            padding: 0;         /* 移除 padding 改用 flex 置中 */
             font-size: 28px;
-            border-radius: 20px;
-            box-shadow: 0 6px 15px rgba(0,0,0,0.2);
+            border-radius: 25px;
+            display: flex;      /* 使用 flex 讓文字置中 */
+            justify-content: center;
+            align-items: center;
+            box-sizing: border-box;
             font-family: 'Patrick Hand', sans-serif;
             font-weight: bold;
+            text-shadow: 1px 1px 0 rgba(0,0,0,0.2);
+            color: white;
+            transition: all 0.1s;
         }
+
+        /* Start Game 按鈕顏色 */
         #start-stop-btn {
-            background: #51ff8a;
+            background: #43e97b;
+            box-shadow: 0 6px 0 #1da251, 0 10px 10px rgba(0,0,0,0.1);
         }
+        #start-stop-btn:active {
+            transform: translateY(6px);
+            box-shadow: 0 0 0 #1da251;
+        }
+
+        /* Sound Off 按鈕顏色 */
         #sound-toggle {
-            background: #95a5a6;
+            background: #fccb90;
+            box-shadow: 0 6px 0 #e68e22, 0 10px 10px rgba(0,0,0,0.1);
         }
         #sound-toggle.active {
-            background: #51ff8a;
+            background: #cfd9df;
+            box-shadow: 0 6px 0 #aab7c4;
+            color: #666;
         }
+        #sound-toggle:active {
+            transform: translateY(6px);
+            box-shadow: 0 0 0 #e68e22;
+        }
+
+        /* Page Counter (偽裝成按鈕) */
+        #page-counter {
+            background: #25b8b5;
+            box-shadow: 0 6px 0 #1d8f8d, 0 10px 10px rgba(0,0,0,0.1);
+            position: static; /* 移除絕對定位，讓它排入 flex */
+            transform: none;  /* 移除旋轉 */
+            z-index: auto;
+            cursor: default; /* 改為游標 */
+        }
+        /* Page counter 不需要點擊效果，所以不做 :active 位移 */
+
         #load-status {
             text-align: center;
-            font-size: 18px;
+            font-size: 24px;
             min-height: 30px;
             margin: 10px 0;
+            color: var(--dark-pink);
         }
-        #page-counter {
-            position: absolute;
-            bottom: 20px;
-            right: 30px;
-            font-size: 32px;
-            font-weight: bold;
-            color: #ff6b9d;
-            background: rgba(255,255,255,0.8);
-            padding: 10px 20px;
-            border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            z-index: 10;
-        }
-        /* 倒數遮罩 */
+
         #countdown-overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255,255,255,0.9);
+            background: rgba(255, 255, 255, 0.95);
             display: none;
             justify-content: center;
             align-items: center;
-            font-size: 120px;
-            color: #ff375f;
+            font-size: 150px;
+            color: #ff6b81;
+            text-shadow: 5px 5px 0 #ffccd5;
             font-weight: bold;
             z-index: 20;
             border-radius: 20px;
         }
+
         #ready-message {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 100px;
-            color: #ff6b9d;
-            text-shadow: 4px 4px 0px #fff, 6px 6px 0px rgba(0,0,0,0.1);
+            font-size: 120px;
+            color: #608fdb;
+            text-shadow: 5px 5px 0 #fff, 8px 8px 0 rgba(0,0,0,0.1);
             display: none;
             z-index: 5;
             pointer-events: none;
+            width: 100%;
+            text-align: center;
         }
 
-        /* 暫停/結算 視窗樣式 */
         #pause-modal {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: white;
-            padding: 40px;
-            border-radius: 25px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            background: #fff;
+            padding: 40px 60px;
+            border-radius: 50px;
+            box-shadow: 0 15px 50px rgba(100, 100, 255, 0.2);
             text-align: center;
             z-index: 30;
             display: none;
-            min-width: 320px;
-            border: 5px solid #ff6b9d;
+            min-width: 350px;
+            border: 8px solid #bde0fe;
         }
         #pause-modal h3 {
-            font-size: 48px;
-            color: #ff6b9d;
+            font-size: 60px;
+            color: #ff6b81;
             margin: 0 0 20px;
+            text-shadow: 2px 2px 0 #fff0f3;
         }
         #pause-modal p {
-            font-size: 32px;
-            color: #555;
+            font-size: 36px;
+            color: #666;
             margin: 0 0 30px;
         }
         .modal-btn {
             display: block;
             width: 100%;
-            padding: 15px 0;
-            margin: 10px 0;
-            font-size: 24px;
-            border: none;
-            border-radius: 15px;
-            cursor: pointer;
-            font-family: 'Patrick Hand', sans-serif;
-            font-weight: bold;
-            transition: transform 0.1s;
-        }
-        .modal-btn:hover {
-            transform: scale(1.02);
+            margin: 15px 0;
+            background: #43e97b;
+            color: white;
+            box-shadow: 0 6px 0 #2dce68;
         }
         .btn-continue {
-            background: #51ff8a;
-            color: #005a2b;
+            background: #43e97b;
+            box-shadow: 0 6px 0 #2dce68;
         }
         .btn-restart {
-            background: #ff4757;
-            color: white;
+            background: #ff6b6b;
+            box-shadow: 0 6px 0 #fa5252;
         }
+        
     </style>
 </head>
 <body>
-    <h1 class="game-title">Say the word on beat</h1>
-    <div class="version-tag">Version 10.0</div>
+    <h1 class="game-title">Say the word on beat!</h1>
+    <div class="version-tag">Enjoy your game!</div>
     
     <div id="teacher-settings">
-            <div id="top-controls">
-            <button id="upload-btn">上傳圖片</button>
-            <button onclick="saveAndLoad()">儲存並載入遊戲</button>
-            <label>BPM（速度）：</label>
-            <input type="number" id="bpm" value="100" min="40" max="200">
-            <label>每張停留節拍數：</label>
-            <input type="number" id="beats-per-image" value="4" min="1" max="10">
+        <p style="text-align:center; font-size:22px; color:#888; margin:0 0 20px;">
+            ✨ 請確保 <b>1.mp3</b> 與 <b>2.mp3</b> 在資料夾中 ✨
+        </p>
+        <div id="top-controls">
+            <button id="upload-btn">📂 Upload Images</button>
+            <button onclick="saveAndLoad()">💾 Load Game</button>
+            <div style="background:#fff5f7; padding:5px 15px; border-radius:15px; display:flex; gap:15px; border:2px solid #ffccd5;">
+                <label>BPM: <input type="number" id="bpm" value="100" min="40" max="200"></label>
+                <label>Beats/Pic: <input type="number" id="beats-per-image" value="4" min="1" max="10"></label>
+            </div>
             
-            <label style="margin-left: 15px; color: #ff375f; font-weight: bold;">
+            <label style="background:#e0f7fa; padding:10px 20px; border-radius:20px; color:#00bcd4; border:2px solid #b2ebf2;">
                 <input type="checkbox" id="acceleration-mode">
-                加速模式
+                🚀 Speed Up Mode
             </label>
         </div>
         <div id="load-status"></div>
@@ -343,32 +448,32 @@
     <div id="student-game">
         <div id="countdown-overlay">Ready...</div>
         
-        <!-- 暫停/結算視窗 -->
         <div id="pause-modal">
             <h3>Game Paused</h3>
-            <p id="pause-msg">You are at Page 1</p>
-            <button class="modal-btn btn-continue" onclick="continueGame()">Continue Challenge</button>
-            <button class="modal-btn btn-restart" onclick="quitGame()">Restart / Stop</button>
+            <p id="pause-msg">Page 1</p>
+            <button class="modal-btn btn-continue" onclick="continueGame()">Continue ▶</button>
+            <button class="modal-btn btn-restart" onclick="quitGame()">Quit ⏹</button>
         </div>
 
         <h2>Say the word on beat!</h2>
         
-        <div style="position: relative; flex: 1; width: 100%;">
+        <div class="game-content-wrapper">
             <div id="ready-message">Ready?</div>
             <div id="grid"></div>
         </div>
 
+        <!-- 底部控制列：紅球 + 3個等大按鈕 -->
         <div id="controls">
-            <div id="beat-indicator">🔴</div>
+            <div id="beat-indicator"></div> 
             <button id="start-stop-btn" onclick="toggleGame()">Start Game</button>
             <button id="sound-toggle" onclick="toggleSound()">Sound Off</button>
+            <div id="page-counter">Page: 0</div>
         </div>
-        <div id="page-counter">Page: 0</div>
+        
     </div>
 
     <input type="file" id="file-input" multiple accept="image/*" style="display:none;">
 
-    <!-- 外部音效定義 -->
     <audio id="audio-intro" src="1.mp3" preload="auto"></audio>
     <audio id="audio-reveal" src="2.mp3" preload="auto"></audio>
 
@@ -381,8 +486,7 @@
         let soundOn = true;
         let pageCount = 0;
         
-        // 狀態管理
-        let gameState = 'IDLE'; // IDLE, COUNTDOWN, REVEAL, PLAYING, PAUSED
+        let gameState = 'IDLE'; 
         
         let beatCount = 0;
         let beatsPerImage = 4;
@@ -424,7 +528,6 @@
             }
         });
 
-        // --- Web Audio API 合成音效核心 (僅用於遊戲進行時) ---
         function initAudio() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -442,7 +545,6 @@
             }
         }
 
-        // 哨子聲 (維持大聲)
         function playWhistle(time) {
             if (!soundOn || !audioCtx) return;
             const t = time || audioCtx.currentTime;
@@ -480,7 +582,6 @@
             createWhistlePart(2100, t, 0.15);
         }
 
-        // 背景樂器 (音量調低約70% -> 0.25左右)
         function playDrum(type, time) {
             if (!soundOn || !audioCtx) return;
             const t = time || audioCtx.currentTime;
@@ -491,7 +592,6 @@
                 osc.frequency.setValueAtTime(150, t);
                 osc.frequency.exponentialRampToValueAtTime(0.01, t + 0.5);
                 
-                // 大幅調降音量
                 gain.gain.setValueAtTime(0.25, t);
                 gain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
                 
@@ -509,7 +609,6 @@
                 src.connect(filter);
                 filter.connect(gain);
                 
-                // 調降
                 gain.gain.setValueAtTime(0.12, t);
                 gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
                 
@@ -526,7 +625,6 @@
                 src.connect(filter);
                 filter.connect(gain);
                 
-                // 調降
                 gain.gain.setValueAtTime(0.06, t);
                 gain.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
                 
@@ -539,7 +637,6 @@
                 osc.type = 'triangle';
                 osc.frequency.setValueAtTime(100, t); 
                 
-                // 調降
                 gain.gain.setValueAtTime(0.1, t);
                 gain.gain.linearRampToValueAtTime(0, t + 0.2);
                 
@@ -555,8 +652,8 @@
             const t = audioCtx.currentTime;
 
             if (isMoving) {
-                playWhistle(t);   // 哨子 (大聲)
-                playDrum('kick', t); // 背景 (小聲)
+                playWhistle(t);   
+                playDrum('kick', t); 
                 playDrum('hihat', t);
             } else {
                 const step = beatCount % 4;
@@ -573,12 +670,11 @@
             }
         }
 
-        // --- 檔案處理 ---
         function handleFiles(files) {
             let loadedCount = 0;
             const total = files.length;
             if (total === 0) return;
-            loadStatus.innerHTML = `<p style="color:#ff6b9d;">Loading ${total} images...</p>`;
+            loadStatus.innerHTML = `<p>Loading ${total} images...</p>`;
             Array.from(files).forEach(file => {
                 if (!file.type.startsWith('image/')) {
                     loadedCount++;
@@ -595,7 +691,7 @@
                     tip.className = 'tip';
                     tip.textContent = file.name;
                     const deleteBtn = document.createElement('button');
-                    deleteBtn.textContent = 'Del';
+                    deleteBtn.textContent = 'x';
                     deleteBtn.className = 'delete-btn';
                     deleteBtn.onclick = (e) => {
                         e.stopPropagation();
@@ -607,7 +703,7 @@
                     preview.appendChild(div);
                     loadedCount++;
                     if (loadedCount === total) {
-                        loadStatus.innerHTML = `<p style="color:#51ff8a;">Loaded ${total} images!</p>`;
+                        loadStatus.innerHTML = `<p style="color:#2dce68;">Loaded ${total} images!</p>`;
                     }
                 };
                 reader.readAsDataURL(file);
@@ -622,10 +718,10 @@
                 contentList.push({ word: '', image });
             });
             if (contentList.length === 0) {
-                alert('Please upload images first!');
+                alert('Please upload images first! 📸');
                 return;
             }
-            alert(`Loaded! ${contentList.length} cards.`);
+            alert(`Loaded! ${contentList.length} cards. 🎉`);
             studentGame.style.display = 'flex';
             readyMessage.style.display = 'block';
             generateNewRound();
@@ -665,49 +761,42 @@
             if (el) el.classList.add('current');
         }
 
-        // --- 遊戲流程 ---
-
         function toggleGame() {
-            if (contentList.length === 0) { alert('Please load game first!'); return; }
-            
+            if (contentList.length === 0) { alert('Please load game first! 📸'); return; }
             if (isRunning) {
-                pauseGame(); // 改為暫停
+                pauseGame(); 
             } else {
                 startGame();
             }
         }
 
-        // 觸發暫停
         function pauseGame() {
             clearTimeout(timerId);
             isRunning = false;
             gameState = 'PAUSED';
 
-            // 停止外部音訊
             audioIntro.pause(); 
             audioReveal.pause();
             
-            // 顯示遮罩與訊息
-            pauseMsg.textContent = `You are at Page ${pageCount}`;
+            pauseMsg.textContent = `You are at Page ${pageCount} 🌟`;
             pauseModal.style.display = 'block';
             
             startStopBtn.textContent = 'Start Game';
-            startStopBtn.style.backgroundColor = '#51ff8a';
+            startStopBtn.style.backgroundColor = '#43e97b';
+            startStopBtn.style.boxShadow = '0 6px 0 #1da251';
         }
 
-        // 繼續挑戰
         function continueGame() {
             pauseModal.style.display = 'none';
             isRunning = true;
             startStopBtn.textContent = 'Stop Game';
-            startStopBtn.style.backgroundColor = '#ff6b9d';
+            startStopBtn.style.backgroundColor = '#ff6b6b';
+            startStopBtn.style.boxShadow = '0 6px 0 #d6306d';
             
-            // 重新出題
             renderGrid(false); 
             startRevealPhase();
         }
 
-        // 放棄 / 重新開始
         function quitGame() {
             pauseModal.style.display = 'none';
             resetGameLogic();
@@ -725,16 +814,18 @@
             readyMessage.style.display = 'block';
 
             startStopBtn.textContent = 'Start Game';
-            startStopBtn.style.backgroundColor = '#51ff8a';
+            startStopBtn.style.backgroundColor = '#43e97b';
+            startStopBtn.style.boxShadow = '0 6px 0 #1da251';
             document.querySelectorAll('.grid-item').forEach(el => el.classList.remove('current'));
             document.querySelectorAll('.grid-item').forEach(el => el.classList.add('visible'));
         }
 
         function startGame() {
-            initAudio(); // 初始化 AudioContext
+            initAudio(); 
 
             startStopBtn.textContent = 'Stop Game';
-            startStopBtn.style.backgroundColor = '#ff6b9d';
+            startStopBtn.style.backgroundColor = '#ff6b6b';
+            startStopBtn.style.boxShadow = '0 6px 0 #d6306d';
             readyMessage.style.display = 'none';
             
             initialBpm = parseInt(document.getElementById('bpm').value) || 100;
@@ -804,10 +895,10 @@
             beatCount = 0;
             highlightCurrent();
 
-            // 第一拍
             playLivelyBackground(true);
             
-            gameLoop();
+            let delay = calculateCurrentDelay();
+            timerId = setTimeout(gameLoop, delay);
         }
 
         function gameLoop() {
